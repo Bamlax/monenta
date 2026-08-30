@@ -1,0 +1,44 @@
+name: monenta
+description: "A new Flutter project."
+
+publish_to: 'none'
+
+version: 1.2.0+3
+
+environment:
+  sdk: ^3.10.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  device_calendar: ^4.3.1
+  timezone: ^0.9.0
+  flutter_slidable: ^3.1.1
+  shared_preferences: ^2.2.3
+
+  # Android 前台服务：
+  # 用于让番茄钟在切换页面、切换 App、锁屏后继续运行，
+  # 同时在 Android 通知栏显示实时计时。
+  flutter_foreground_task: ^9.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+  adaptive_icon_foreground: "assets/icon.png"
+  adaptive_icon_background: "#ffffff"

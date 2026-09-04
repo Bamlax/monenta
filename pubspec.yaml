@@ -26,6 +26,8 @@ dependencies:
   # 同时在 Android 通知栏显示实时计时。
   flutter_foreground_task: ^9.2.2
 
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

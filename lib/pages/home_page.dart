@@ -19,6 +19,7 @@ class _HomePageState extends State<HomePage> {
   final Map<String, bool> _groupExpanded = {
     '过去完成': false,
     '过去未完成': true,
+    '过去事件': true,
     '今天': true,
     '明天': true,
     '后天': true,
@@ -1115,6 +1116,8 @@ class _HomePageState extends State<HomePage> {
         if (item is String) return;
 
         final task = item as Task;
+        if (task.isReadOnly) return;
+
         String? newGroupName;
 
         for (int i = newIndex; i >= 0; i--) {
@@ -1230,6 +1233,48 @@ class _HomePageState extends State<HomePage> {
     final taskDateText = task.date == null
         ? null
         : '${task.date!.month}/${task.date!.day}${task.time != null ? ' ${task.time!.format(context)}' : ''}';
+
+    // 🔴 只读节假日事件：无锁标、无多余提示、无弹窗、无侧滑
+    if (task.isReadOnly) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade100, width: 1),
+          ),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 24,
+          leading: const SizedBox(width: 24, height: 24),
+          title: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            children: [
+              Text(
+                task.title,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '节假日',
+                  style: TextStyle(fontSize: 10, color: Colors.orange.shade700),
+                ),
+              ),
+            ],
+          ),
+          onTap: null, // 🔴 点击完全无弹窗无反应
+        ),
+      );
+    }
 
     return Slidable(
       key: ValueKey('slidable_${task.id}'),

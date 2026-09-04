@@ -16,6 +16,7 @@ const List<VersionRecord> versionHistory = [
     version: 'v1.3.0',
     date: '2026-09-4',
     updates: [
+      '新增：法定节假日提示',
       '新增：当日代办提示',
       '修复：集子中对未完成任务的日期显示',
     ],

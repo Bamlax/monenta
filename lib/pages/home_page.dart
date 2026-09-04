@@ -1,8 +1,6 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-
 import '../models/task_data.dart';
 import '../widgets/task_sheet.dart';
 
@@ -15,10 +13,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   DateTime _selectedDate = DateTime.now();
-
-  final PageController _pageController =
-      PageController(initialPage: 500);
-
+  final PageController _pageController = PageController(initialPage: 500);
   late DateTime _baseMonday;
 
   final Map<String, bool> _groupExpanded = {
@@ -34,25 +29,15 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-
     final now = DateTime.now();
-
-    _baseMonday = now.subtract(
-      Duration(days: now.weekday - 1),
-    );
+    _baseMonday = now.subtract(Duration(days: now.weekday - 1));
   }
 
-  Widget _buildSegmentedDateBtn(
-    String label,
-    VoidCallback onTap,
-  ) {
+  Widget _buildSegmentedDateBtn(String label, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 2,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: Text(
           label,
           style: const TextStyle(
@@ -65,25 +50,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildInboxTaskCard(
-    Task task,
-    BuildContext context,
-  ) {
-    final listColor =
-        taskData.getListColor(task.listName ?? '');
+  Widget _buildInboxTaskCard(Task task, BuildContext context) {
+    final listColor = taskData.getListColor(task.listName ?? '');
 
     return Slidable(
-      key: ValueKey(
-        'inbox_slidable_${task.id}',
-      ),
+      key: ValueKey('inbox_slidable_${task.id}'),
       endActionPane: ActionPane(
         motion: const ScrollMotion(),
         extentRatio: 0.2,
         children: [
           SlidableAction(
-            onPressed: (context) {
-              taskData.deleteTask(task.id);
-            },
+            onPressed: (context) => taskData.deleteTask(task.id),
             backgroundColor: Colors.red.shade400,
             foregroundColor: Colors.white,
             icon: Icons.delete,
@@ -94,31 +71,18 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border(
-            bottom: BorderSide(
-              color: Colors.grey.shade100,
-              width: 1,
-            ),
+            bottom: BorderSide(color: Colors.grey.shade100, width: 1),
           ),
         ),
         child: InkWell(
-          onTap: () {
-            showTaskBottomSheet(
-              context,
-              existingTask: task,
-            );
-          },
+          onTap: () => showTaskBottomSheet(context, existingTask: task),
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Wrap(
-                  crossAxisAlignment:
-                      WrapCrossAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: 6,
                   children: [
                     if (!task.isEvent)
@@ -128,61 +92,42 @@ class _HomePageState extends State<HomePage> {
                         child: Checkbox(
                           value: task.isDone,
                           activeColor: listColor,
-                          side: BorderSide(
-                            color: listColor,
-                            width: 2,
-                          ),
-                          onChanged: (_) {
-                            taskData.toggleTaskDone(
-                              task.id,
-                            );
-                          },
+                          side: BorderSide(color: listColor, width: 2),
+                          onChanged: (_) => taskData.toggleTaskDone(task.id),
                         ),
                       ),
                     Text(
                       task.title,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight:
-                            FontWeight.bold,
-                        color: (!task.isEvent &&
-                                task.isDone)
+                        fontWeight: FontWeight.bold,
+                        color: (!task.isEvent && task.isDone)
                             ? Colors.grey
                             : Colors.black87,
-                        decoration: (!task.isEvent &&
-                                task.isDone)
+                        decoration: (!task.isEvent && task.isDone)
                             ? TextDecoration.lineThrough
                             : null,
                       ),
                     ),
-                    if (task.tags.isNotEmpty)
-                      ...task.tags.map(
-                        (tag) => Container(
-                          padding:
-                              const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 0,
-                          ),
-                          decoration:
-                              BoxDecoration(
-                            color: Colors
-                                .lightBlue.shade50,
-                            borderRadius:
-                                BorderRadius.circular(
-                              4,
-                            ),
-                          ),
-                          child: Text(
-                            '#$tag',
-                            style:
-                                const TextStyle(
-                              fontSize: 9,
-                              color:
-                                  Colors.lightBlue,
-                            ),
+                    ...task.tags.map(
+                      (tag) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 0,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.lightBlue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '#$tag',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: Colors.lightBlue,
                           ),
                         ),
                       ),
+                    ),
                   ],
                 ),
                 if (task.description.isNotEmpty) ...[
@@ -190,221 +135,118 @@ class _HomePageState extends State<HomePage> {
                   Text(
                     task.description,
                     maxLines: 1,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.black54,
-                    ),
-                  ),
-                ],
-                if (task.date != null ||
-                    task.time != null) ...[
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      if (task.date != null)
-                        Text(
-                          '${task.date!.month}/${task.date!.day}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      if (task.time != null) ...[
-                        if (task.date != null)
-                          const SizedBox(width: 8),
-                        const Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          task.time!.format(
-                            context,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ],
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Colors.black54),
                   ),
                 ],
                 const SizedBox(height: 6),
                 Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius:
-                            BorderRadius.circular(4),
-                        border: Border.all(
-                          color: Colors
-                              .lightBlue.shade100,
-                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.lightBlue.shade100),
                       ),
                       child: Row(
-                        mainAxisSize:
-                            MainAxisSize.min,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildSegmentedDateBtn(
                             '今天',
-                            () {
-                              taskData.updateTaskDate(
-                                task.id,
-                                DateTime.now(),
-                              );
-                            },
+                            () => taskData.updateTaskDate(
+                              task.id,
+                              DateTime.now(),
+                            ),
                           ),
                           Container(
                             width: 1,
                             height: 10,
-                            color: Colors
-                                .lightBlue.shade100,
+                            color: Colors.lightBlue.shade100,
                           ),
                           _buildSegmentedDateBtn(
                             '明天',
-                            () {
-                              taskData.updateTaskDate(
-                                task.id,
-                                DateTime.now()
-                                    .add(
-                                  const Duration(
-                                    days: 1,
-                                  ),
-                                ),
-                              );
-                            },
+                            () => taskData.updateTaskDate(
+                              task.id,
+                              DateTime.now().add(const Duration(days: 1)),
+                            ),
                           ),
                           Container(
                             width: 1,
                             height: 10,
-                            color: Colors
-                                .lightBlue.shade100,
+                            color: Colors.lightBlue.shade100,
                           ),
-                          _buildSegmentedDateBtn(
-                            '📅',
-                            () async {
-                              final picked =
-                                  await showDatePicker(
-                                context: context,
-                                initialDate:
-                                    DateTime.now(),
-                                firstDate:
-                                    DateTime(2020),
-                                lastDate:
-                                    DateTime(2050),
-                              );
-
-                              if (!context.mounted) {
-                                return;
-                              }
-
-                              if (picked != null) {
-                                taskData
-                                    .updateTaskDate(
-                                  task.id,
-                                  picked,
-                                );
-                              }
-                            },
-                          ),
+                          _buildSegmentedDateBtn('📅', () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2050),
+                            );
+                            if (!context.mounted) return;
+                            if (picked != null)
+                              taskData.updateTaskDate(task.id, picked);
+                          }),
                         ],
                       ),
                     ),
                     Container(
                       height: 20,
-                      padding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 4,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius:
-                            BorderRadius.circular(4),
-                        border: Border.all(
-                          color:
-                              Colors.grey.shade200,
-                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.grey.shade200),
                       ),
-                      child:
-                          DropdownButtonHideUnderline(
+                      child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: task.listName,
                           hint: const Text(
                             '分类...',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey,
-                            ),
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
                           ),
                           icon: const Icon(
-                            Icons
-                                .keyboard_arrow_down,
+                            Icons.keyboard_arrow_down,
                             size: 12,
                             color: Colors.grey,
                           ),
                           style: TextStyle(
                             fontSize: 10,
                             color: listColor,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                           isDense: true,
                           items: [
-                            const DropdownMenuItem<
-                                String>(
+                            const DropdownMenuItem<String>(
                               value: null,
                               child: Text(
                                 '无清单',
-                                style: TextStyle(
-                                  color:
-                                      Colors.grey,
-                                ),
+                                style: TextStyle(color: Colors.grey),
                               ),
                             ),
                             ...taskData.myLists.map(
-                              (list) =>
-                                  DropdownMenuItem<
-                                      String>(
+                              (list) => DropdownMenuItem<String>(
                                 value: list.name,
                                 child: Row(
-                                  mainAxisSize:
-                                      MainAxisSize.min,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
                                       Icons.circle,
                                       size: 6,
-                                      color:
-                                          list.color,
+                                      color: list.color,
                                     ),
-                                    const SizedBox(
-                                      width: 4,
-                                    ),
+                                    const SizedBox(width: 4),
                                     Text(
                                       list.name,
-                                      style:
-                                          TextStyle(
-                                        color:
-                                            list.color,
-                                      ),
+                                      style: TextStyle(color: list.color),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ],
-                          onChanged: (newList) {
-                            taskData.updateTaskList(
-                              task.id,
-                              newList,
-                            );
-                          },
+                          onChanged: (newList) =>
+                              taskData.updateTaskList(task.id, newList),
                         ),
                       ),
                     ),
@@ -418,16 +260,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _showEditListDialog(
-    TaskList list,
-  ) {
-    final TextEditingController ctrl =
-        TextEditingController(
-      text: list.name,
-    );
-
+  void _showEditListDialog(TaskList list) {
+    final ctrl = TextEditingController(text: list.name);
     Color selectedColor = list.color;
-
     final colors = [
       Colors.blue,
       Colors.green,
@@ -440,7 +275,6 @@ class _HomePageState extends State<HomePage> {
       Colors.indigo,
       Colors.cyan,
     ];
-
     bool showCustomColor = false;
 
     showDialog(
@@ -448,55 +282,28 @@ class _HomePageState extends State<HomePage> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setState) {
-            final TextEditingController rCtrl =
-                TextEditingController(
-              text:
-                  (selectedColor.r * 255.0)
-                      .round()
-                      .clamp(0, 255)
-                      .toString(),
+            final rCtrl = TextEditingController(
+              text: (selectedColor.r * 255).round().clamp(0, 255).toString(),
+            );
+            final gCtrl = TextEditingController(
+              text: (selectedColor.g * 255).round().clamp(0, 255).toString(),
+            );
+            final bCtrl = TextEditingController(
+              text: (selectedColor.b * 255).round().clamp(0, 255).toString(),
             );
 
-            final TextEditingController gCtrl =
-                TextEditingController(
-              text:
-                  (selectedColor.g * 255.0)
-                      .round()
-                      .clamp(0, 255)
-                      .toString(),
-            );
-
-            final TextEditingController bCtrl =
-                TextEditingController(
-              text:
-                  (selectedColor.b * 255.0)
-                      .round()
-                      .clamp(0, 255)
-                      .toString(),
-            );
-
-            Widget buildRgbInput(
-              String label,
-              TextEditingController
-                  textCtrl,
-            ) {
+            Widget buildRgbInput(String label, TextEditingController textCtrl) {
               return Padding(
-                padding:
-                    const EdgeInsets.symmetric(
-                  horizontal: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Row(
-                  mainAxisSize:
-                      MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       label,
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         color: Colors.grey,
                         fontSize: 14,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -505,60 +312,33 @@ class _HomePageState extends State<HomePage> {
                       height: 32,
                       child: TextField(
                         controller: textCtrl,
-                        keyboardType:
-                            TextInputType.number,
-                        textAlign:
-                            TextAlign.center,
-                        style:
-                            const TextStyle(
-                          fontSize: 13,
-                        ),
-                        decoration:
-                            InputDecoration(
-                          contentPadding:
-                              EdgeInsets.zero,
-                          border:
-                              OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(
-                              6,
-                            ),
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          contentPadding: EdgeInsets.zero,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
                           ),
                         ),
                         onChanged: (_) {
                           final r =
-                              int.tryParse(
-                                    rCtrl.text,
-                                  ) ??
-                                  (selectedColor.r *
-                                          255.0)
-                                      .round();
-
+                              int.tryParse(rCtrl.text) ??
+                              (selectedColor.r * 255).round();
                           final g =
-                              int.tryParse(
-                                    gCtrl.text,
-                                  ) ??
-                                  (selectedColor.g *
-                                          255.0)
-                                      .round();
-
+                              int.tryParse(gCtrl.text) ??
+                              (selectedColor.g * 255).round();
                           final b =
-                              int.tryParse(
-                                    bCtrl.text,
-                                  ) ??
-                                  (selectedColor.b *
-                                          255.0)
-                                      .round();
-
-                          setState(() {
-                            selectedColor =
-                                Color.fromARGB(
+                              int.tryParse(bCtrl.text) ??
+                              (selectedColor.b * 255).round();
+                          setState(
+                            () => selectedColor = Color.fromARGB(
                               255,
                               r.clamp(0, 255),
                               g.clamp(0, 255),
                               b.clamp(0, 255),
-                            );
-                          });
+                            ),
+                          );
                         },
                       ),
                     ),
@@ -567,57 +347,41 @@ class _HomePageState extends State<HomePage> {
               );
             }
 
-            void updateFromWheel(
-              double hue,
-              double saturation,
-            ) {
+            void updateFromWheel(double hue, double saturation) {
               setState(() {
-                selectedColor =
-                    HSVColor.fromAHSV(
-                  1.0,
+                selectedColor = HSVColor.fromAHSV(
+                  1,
                   hue,
                   saturation,
-                  1.0,
+                  1,
                 ).toColor();
-
-                rCtrl.text =
-                    (selectedColor.r * 255.0)
-                        .round()
-                        .clamp(0, 255)
-                        .toString();
-
-                gCtrl.text =
-                    (selectedColor.g * 255.0)
-                        .round()
-                        .clamp(0, 255)
-                        .toString();
-
-                bCtrl.text =
-                    (selectedColor.b * 255.0)
-                        .round()
-                        .clamp(0, 255)
-                        .toString();
+                rCtrl.text = (selectedColor.r * 255)
+                    .round()
+                    .clamp(0, 255)
+                    .toString();
+                gCtrl.text = (selectedColor.g * 255)
+                    .round()
+                    .clamp(0, 255)
+                    .toString();
+                bCtrl.text = (selectedColor.b * 255)
+                    .round()
+                    .clamp(0, 255)
+                    .toString();
               });
             }
 
             return AlertDialog(
               title: const Text(
                 '编辑清单',
-                style: TextStyle(
-                  color: Colors.lightBlue,
-                ),
+                style: TextStyle(color: Colors.lightBlue),
               ),
               content: Column(
-                mainAxisSize:
-                    MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: ctrl,
                     autofocus: true,
-                    decoration:
-                        const InputDecoration(
-                      hintText: '清单名称',
-                    ),
+                    decoration: const InputDecoration(hintText: '清单名称'),
                   ),
                   const SizedBox(height: 16),
                   if (!showCustomColor)
@@ -627,62 +391,28 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         ...colors.map(
                           (c) => GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                selectedColor = c;
-
-                                rCtrl.text =
-                                    (c.r * 255.0)
-                                        .round()
-                                        .clamp(0, 255)
-                                        .toString();
-
-                                gCtrl.text =
-                                    (c.g * 255.0)
-                                        .round()
-                                        .clamp(0, 255)
-                                        .toString();
-
-                                bCtrl.text =
-                                    (c.b * 255.0)
-                                        .round()
-                                        .clamp(0, 255)
-                                        .toString();
-                              });
-                            },
-                            child:
-                                CircleAvatar(
+                            onTap: () => setState(() => selectedColor = c),
+                            child: CircleAvatar(
                               backgroundColor: c,
                               radius: 16,
-                              child:
-                                  selectedColor ==
-                                          c
-                                      ? const Icon(
-                                          Icons.check,
-                                          color:
-                                              Colors.white,
-                                          size: 16,
-                                        )
-                                      : null,
+                              child: selectedColor == c
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 16,
+                                    )
+                                  : null,
                             ),
                           ),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              showCustomColor =
-                                  true;
-                            });
-                          },
-                          child:
-                              const CircleAvatar(
-                            backgroundColor:
-                                Colors.grey,
+                          onTap: () => setState(() => showCustomColor = true),
+                          child: const CircleAvatar(
+                            backgroundColor: Colors.grey,
                             radius: 16,
                             child: Icon(
                               Icons.palette,
-                              color:
-                                  Colors.white,
+                              color: Colors.white,
                               size: 16,
                             ),
                           ),
@@ -693,166 +423,51 @@ class _HomePageState extends State<HomePage> {
                     Column(
                       children: [
                         Stack(
-                          alignment:
-                              Alignment.center,
+                          alignment: Alignment.center,
                           children: [
                             GestureDetector(
-                              onPanUpdate:
-                                  (details) {
-                                const radius =
-                                    75.0;
-
-                                final dx =
-                                    details
-                                            .localPosition
-                                            .dx -
-                                        radius;
-
-                                final dy =
-                                    details
-                                            .localPosition
-                                            .dy -
-                                        radius;
-
-                                double angle =
-                                    atan2(
-                                  dy,
-                                  dx,
-                                );
-
-                                if (angle < 0) {
-                                  angle +=
-                                      2 * pi;
-                                }
-
-                                final hue =
-                                    angle *
-                                        180 /
-                                        pi;
-
-                                final distance =
-                                    sqrt(
-                                  dx * dx +
-                                      dy * dy,
-                                );
-
-                                final saturation =
-                                    (distance /
-                                            radius)
-                                        .clamp(
+                              onPanUpdate: (details) {
+                                const radius = 75.0;
+                                final dx = details.localPosition.dx - radius;
+                                final dy = details.localPosition.dy - radius;
+                                var angle = atan2(dy, dx);
+                                if (angle < 0) angle += 2 * pi;
+                                final hue = angle * 180 / pi;
+                                final distance = sqrt(dx * dx + dy * dy);
+                                final saturation = (distance / radius).clamp(
                                   0.0,
                                   1.0,
                                 );
-
-                                updateFromWheel(
-                                  hue,
-                                  saturation,
-                                );
+                                updateFromWheel(hue, saturation);
                               },
-                              onTapDown:
-                                  (details) {
-                                const radius =
-                                    75.0;
-
-                                final dx =
-                                    details
-                                            .localPosition
-                                            .dx -
-                                        radius;
-
-                                final dy =
-                                    details
-                                            .localPosition
-                                            .dy -
-                                        radius;
-
-                                double angle =
-                                    atan2(
-                                  dy,
-                                  dx,
-                                );
-
-                                if (angle < 0) {
-                                  angle +=
-                                      2 * pi;
-                                }
-
-                                final hue =
-                                    angle *
-                                        180 /
-                                        pi;
-
-                                final distance =
-                                    sqrt(
-                                  dx * dx +
-                                      dy * dy,
-                                );
-
-                                final saturation =
-                                    (distance /
-                                            radius)
-                                        .clamp(
+                              onTapDown: (details) {
+                                const radius = 75.0;
+                                final dx = details.localPosition.dx - radius;
+                                final dy = details.localPosition.dy - radius;
+                                var angle = atan2(dy, dx);
+                                if (angle < 0) angle += 2 * pi;
+                                final hue = angle * 180 / pi;
+                                final distance = sqrt(dx * dx + dy * dy);
+                                final saturation = (distance / radius).clamp(
                                   0.0,
                                   1.0,
                                 );
-
-                                updateFromWheel(
-                                  hue,
-                                  saturation,
-                                );
+                                updateFromWheel(hue, saturation);
                               },
                               child: Container(
                                 width: 150,
                                 height: 150,
-                                decoration:
-                                    BoxDecoration(
-                                  shape:
-                                      BoxShape.circle,
-                                  gradient:
-                                      SweepGradient(
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: SweepGradient(
                                     colors: [
-                                      HSVColor.fromAHSV(
-                                        1.0,
-                                        0.0,
-                                        1.0,
-                                        1.0,
-                                      ).toColor(),
-                                      HSVColor.fromAHSV(
-                                        1.0,
-                                        60.0,
-                                        1.0,
-                                        1.0,
-                                      ).toColor(),
-                                      HSVColor.fromAHSV(
-                                        1.0,
-                                        120.0,
-                                        1.0,
-                                        1.0,
-                                      ).toColor(),
-                                      HSVColor.fromAHSV(
-                                        1.0,
-                                        180.0,
-                                        1.0,
-                                        1.0,
-                                      ).toColor(),
-                                      HSVColor.fromAHSV(
-                                        1.0,
-                                        240.0,
-                                        1.0,
-                                        1.0,
-                                      ).toColor(),
-                                      HSVColor.fromAHSV(
-                                        1.0,
-                                        300.0,
-                                        1.0,
-                                        1.0,
-                                      ).toColor(),
-                                      HSVColor.fromAHSV(
-                                        1.0,
-                                        360.0,
-                                        1.0,
-                                        1.0,
-                                      ).toColor(),
+                                      Color.fromARGB(255, 255, 0, 0),
+                                      Color.fromARGB(255, 255, 255, 0),
+                                      Color.fromARGB(255, 0, 255, 0),
+                                      Color.fromARGB(255, 0, 255, 255),
+                                      Color.fromARGB(255, 0, 0, 255),
+                                      Color.fromARGB(255, 255, 0, 255),
+                                      Color.fromARGB(255, 255, 0, 0),
                                     ],
                                   ),
                                 ),
@@ -860,55 +475,28 @@ class _HomePageState extends State<HomePage> {
                             ),
                             Builder(
                               builder: (context) {
-                                final hsv =
-                                    HSVColor
-                                        .fromColor(
-                                  selectedColor,
-                                );
-
-                                final angle =
-                                    hsv.hue *
-                                        pi /
-                                        180;
-
-                                final distance =
-                                    hsv.saturation *
-                                        75;
-
-                                return Transform
-                                    .translate(
+                                final hsv = HSVColor.fromColor(selectedColor);
+                                final angle = hsv.hue * pi / 180;
+                                final distance = hsv.saturation * 75;
+                                return Transform.translate(
                                   offset: Offset(
-                                    distance *
-                                        cos(
-                                      angle,
-                                    ),
-                                    distance *
-                                        sin(
-                                      angle,
-                                    ),
+                                    distance * cos(angle),
+                                    distance * sin(angle),
                                   ),
-                                  child:
-                                      Container(
+                                  child: Container(
                                     width: 20,
                                     height: 20,
-                                    decoration:
-                                        BoxDecoration(
-                                      color:
-                                          selectedColor,
-                                      shape:
-                                          BoxShape.circle,
-                                      border:
-                                          Border.all(
-                                        color:
-                                            Colors.white,
+                                    decoration: BoxDecoration(
+                                      color: selectedColor,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
                                         width: 2,
                                       ),
                                       boxShadow: const [
                                         BoxShadow(
-                                          color:
-                                              Colors.black26,
-                                          blurRadius:
-                                              4,
+                                          color: Colors.black26,
+                                          blurRadius: 4,
                                         ),
                                       ],
                                     ),
@@ -918,26 +506,13 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
-                        const SizedBox(
-                          height: 20,
-                        ),
+                        const SizedBox(height: 20),
                         Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment
-                                  .center,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            buildRgbInput(
-                              'R',
-                              rCtrl,
-                            ),
-                            buildRgbInput(
-                              'G',
-                              gCtrl,
-                            ),
-                            buildRgbInput(
-                              'B',
-                              bCtrl,
-                            ),
+                            buildRgbInput('R', rCtrl),
+                            buildRgbInput('G', gCtrl),
+                            buildRgbInput('B', bCtrl),
                           ],
                         ),
                       ],
@@ -947,33 +522,18 @@ class _HomePageState extends State<HomePage> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    taskData.deleteList(
-                      list.name,
-                    );
+                    taskData.deleteList(list.name);
                     Navigator.pop(ctx);
                   },
-                  child: const Text(
-                    '删除',
-                    style: TextStyle(
-                      color: Colors.red,
-                    ),
-                  ),
+                  child: const Text('删除', style: TextStyle(color: Colors.red)),
                 ),
                 TextButton(
-                  onPressed: () =>
-                      Navigator.pop(ctx),
-                  child: const Text(
-                    '取消',
-                    style: TextStyle(
-                      color: Colors.grey,
-                    ),
-                  ),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('取消', style: TextStyle(color: Colors.grey)),
                 ),
                 TextButton(
                   onPressed: () {
-                    if (ctrl.text
-                        .trim()
-                        .isNotEmpty) {
+                    if (ctrl.text.trim().isNotEmpty) {
                       taskData.editList(
                         list.name,
                         ctrl.text.trim(),
@@ -984,9 +544,7 @@ class _HomePageState extends State<HomePage> {
                   },
                   child: const Text(
                     '保存',
-                    style: TextStyle(
-                      color: Colors.lightBlue,
-                    ),
+                    style: TextStyle(color: Colors.lightBlue),
                   ),
                 ),
               ],
@@ -997,80 +555,41 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _showEditTagDialog(
-    String tag,
-  ) {
-    final TextEditingController ctrl =
-        TextEditingController(
-      text: tag,
-    );
+  void _showEditTagDialog(String tag) {
+    final ctrl = TextEditingController(text: tag);
 
     showDialog(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text(
-            '编辑标签',
-            style: TextStyle(
-              color: Colors.lightBlue,
-            ),
+      builder: (ctx) => AlertDialog(
+        title: const Text('编辑标签', style: TextStyle(color: Colors.lightBlue)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '标签名称'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              taskData.deleteTag(tag);
+              Navigator.pop(ctx);
+            },
+            child: const Text('删除', style: TextStyle(color: Colors.red)),
           ),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            decoration:
-                const InputDecoration(
-              hintText: '标签名称',
-            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.grey)),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                taskData.deleteTag(tag);
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) {
+                taskData.editTag(tag, ctrl.text.trim());
                 Navigator.pop(ctx);
-              },
-              child: const Text(
-                '删除',
-                style:
-                    TextStyle(
-                  color: Colors.red,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(ctx),
-              child: const Text(
-                '取消',
-                style:
-                    TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                if (ctrl.text
-                    .trim()
-                    .isNotEmpty) {
-                  taskData.editTag(
-                    tag,
-                    ctrl.text.trim(),
-                  );
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text(
-                '保存',
-                style:
-                    TextStyle(
-                  color: Colors.lightBlue,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+              }
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1078,563 +597,285 @@ class _HomePageState extends State<HomePage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor:
-          Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.8,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          builder:
-              (
-            context,
-            scrollController,
-          ) {
-            return Container(
-              decoration:
-                  const BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                    BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-              ),
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: () =>
-                        Navigator.pop(context),
-                    behavior:
-                        HitTestBehavior.opaque,
-                    child: Container(
-                      width: double.infinity,
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        vertical: 12,
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 4,
-                            decoration:
-                                BoxDecoration(
-                              color: Colors
-                                  .grey
-                                  .shade300,
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                2,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 12,
-                          ),
-                          const Text(
-                            '待办箱',
-                            style:
-                                TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  FontWeight.bold,
-                              color:
-                                  Colors.lightBlue,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Divider(
-                    height: 1,
-                  ),
-                  Expanded(
-                    child: ListenableBuilder(
-                      listenable: taskData,
-                      builder:
-                          (
-                        context,
-                        child,
-                      ) {
-                        final tasks =
-                            taskData.inboxTasks;
-
-                        if (tasks.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              '待办箱已清空~\n随时记录你的闪念，然后在这里分配',
-                              textAlign:
-                                  TextAlign.center,
-                              style:
-                                  TextStyle(
-                                color:
-                                    Colors.grey,
-                                height:
-                                    1.6,
-                              ),
-                            ),
-                          );
-                        }
-
-                        return ReorderableListView
-                            .builder(
-                          scrollController:
-                              scrollController,
-                          itemCount:
-                              tasks.length,
-                          onReorder:
-                              (
-                            oldIndex,
-                            newIndex,
-                          ) =>
-                                  taskData
-                                      .reorderInboxTasks(
-                            oldIndex,
-                            newIndex,
-                          ),
-                          itemBuilder:
-                              (
-                            context,
-                            index,
-                          ) {
-                            final task =
-                                tasks[index];
-
-                            return _buildInboxTaskCard(
-                              task,
-                              context,
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    const bgColor =
-        Colors.white;
-
-    return ListenableBuilder(
-      listenable: taskData,
-      builder:
-          (
-        context,
-        child,
-      ) {
-        String appBarTitle =
-            'Monenta';
-
-        Color appBarColor =
-            Colors.lightBlue;
-
-        if (taskData.currentHomeMode ==
-            'recent') {
-          appBarTitle =
-              '最近代办';
-        } else if (taskData
-                .currentHomeMode ==
-            'list') {
-          appBarTitle =
-              taskData.currentHomeParam ??
-                  '';
-
-          appBarColor =
-              taskData.getListColor(
-            appBarTitle,
-          );
-        } else if (taskData
-                .currentHomeMode ==
-            'tag') {
-          appBarTitle =
-              '#${taskData.currentHomeParam ?? ''}';
-        }
-
-        return Scaffold(
-          backgroundColor: bgColor,
-
-          drawer: Drawer(
-            shape:
-                const RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.zero,
-            ),
-            backgroundColor:
-                Colors.white,
-            child: ListView(
-              padding:
-                  EdgeInsets.zero,
-              children: [
-                const DrawerHeader(
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.lightBlue,
-                  ),
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.8,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    mainAxisAlignment:
-                        MainAxisAlignment.end,
                     children: [
-                      Text(
-                        'Monenta',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white,
-                          fontSize:
-                              28,
-                          fontWeight:
-                              FontWeight.bold,
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      SizedBox(
-                        height: 8,
-                      ),
-                      Text(
-                        '你的待办与笔记',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white70,
-                          fontSize:
-                              14,
+                      const SizedBox(height: 12),
+                      const Text(
+                        '待办箱',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.lightBlue,
                         ),
                       ),
                     ],
                   ),
                 ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: taskData,
+                  builder: (context, child) {
+                    final tasks = taskData.inboxTasks;
+                    if (tasks.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          '待办箱已清空~\n随时记录你的闪念，然后在这里分配',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey, height: 1.6),
+                        ),
+                      );
+                    }
+
+                    return ReorderableListView.builder(
+                      scrollController: scrollController,
+                      itemCount: tasks.length,
+                      onReorder: (oldIndex, newIndex) =>
+                          taskData.reorderInboxTasks(oldIndex, newIndex),
+                      itemBuilder: (context, index) =>
+                          _buildInboxTaskCard(tasks[index], context),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: taskData,
+      builder: (context, child) {
+        var appBarTitle = 'Monenta';
+        Color appBarColor = Colors.lightBlue;
+
+        if (taskData.currentHomeMode == 'recent') {
+          appBarTitle = '最近代办';
+        } else if (taskData.currentHomeMode == 'list') {
+          appBarTitle = taskData.currentHomeParam ?? '';
+          appBarColor = taskData.getListColor(appBarTitle);
+        } else if (taskData.currentHomeMode == 'tag') {
+          appBarTitle = '#${taskData.currentHomeParam ?? ''}';
+        }
+
+        return Scaffold(
+          backgroundColor: Colors.white,
+          drawer: Drawer(
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+            ),
+            backgroundColor: Colors.white,
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                const DrawerHeader(
+                  decoration: BoxDecoration(color: Colors.lightBlue),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Monenta',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '你的待办与笔记',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
                 ListTile(
-                  leading:
-                      const Icon(
+                  leading: const Icon(
                     Icons.check_circle_outline,
-                    color:
-                        Colors.lightBlue,
+                    color: Colors.lightBlue,
                   ),
-                  title:
-                      const Text(
+                  title: const Text(
                     'TODO',
-                    style:
-                        TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   onTap: () {
-                    taskData.setHomeMode(
-                      'todo',
-                    );
-                    Navigator.pop(
-                      context,
-                    );
+                    taskData.setHomeMode('todo');
+                    Navigator.pop(context);
                   },
                 ),
                 ListTile(
-                  leading:
-                      const Icon(
-                    Icons.access_time,
-                    color:
-                        Colors.orange,
-                  ),
-                  title:
-                      const Text(
+                  leading: const Icon(Icons.access_time, color: Colors.orange),
+                  title: const Text(
                     '最近代办',
-                    style:
-                        TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   onTap: () {
-                    taskData.setHomeMode(
-                      'recent',
-                    );
-                    Navigator.pop(
-                      context,
-                    );
+                    taskData.setHomeMode('recent');
+                    Navigator.pop(context);
                   },
                 ),
-                if (taskData
-                    .myLists
-                    .isNotEmpty) ...[
-                  const Divider(
-                    height: 20,
-                    indent: 16,
-                    endIndent: 16,
-                  ),
+                if (taskData.myLists.isNotEmpty) ...[
+                  const Divider(height: 20, indent: 16, endIndent: 16),
                   const Padding(
-                    padding:
-                        EdgeInsets.only(
-                      left: 16,
-                      top: 4,
-                      bottom: 4,
-                    ),
+                    padding: EdgeInsets.only(left: 16, top: 4, bottom: 4),
                     child: Text(
                       '我的清单',
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.grey,
-                        fontWeight:
-                            FontWeight.bold,
-                        fontSize:
-                            12,
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
                     ),
                   ),
                   ...taskData.myLists.map(
                     (list) => ListTile(
-                      leading: Icon(
-                        Icons.circle,
-                        size: 10,
-                        color:
-                            list.color,
-                      ),
+                      leading: Icon(Icons.circle, size: 10, color: list.color),
                       title: Text(
                         list.name,
-                        style:
-                            const TextStyle(
-                          fontSize: 14,
-                        ),
+                        style: const TextStyle(fontSize: 14),
                       ),
                       dense: true,
-                      visualDensity:
-                          const VisualDensity(
+                      visualDensity: const VisualDensity(
                         horizontal: 0,
                         vertical: -4,
                       ),
-                      contentPadding:
-                          const EdgeInsets
-                              .symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 24,
                       ),
                       onTap: () {
-                        taskData
-                            .setHomeMode(
-                          'list',
-                          param:
-                              list.name,
-                        );
-                        Navigator.pop(
-                          context,
-                        );
+                        taskData.setHomeMode('list', param: list.name);
+                        Navigator.pop(context);
                       },
-                      onLongPress: () =>
-                          _showEditListDialog(
-                        list,
-                      ),
+                      onLongPress: () => _showEditListDialog(list),
                     ),
                   ),
                 ],
-                if (taskData.myTags
-                    .isNotEmpty) ...[
-                  const Divider(
-                    height: 20,
-                    indent: 16,
-                    endIndent: 16,
-                  ),
+                if (taskData.myTags.isNotEmpty) ...[
+                  const Divider(height: 20, indent: 16, endIndent: 16),
                   const Padding(
-                    padding:
-                        EdgeInsets.only(
-                      left: 16,
-                      top: 4,
-                      bottom: 8,
-                    ),
+                    padding: EdgeInsets.only(left: 16, top: 4, bottom: 8),
                     child: Text(
                       '我的标签',
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.grey,
-                        fontWeight:
-                            FontWeight.bold,
-                        fontSize:
-                            12,
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
                     ),
                   ),
                   Padding(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal: 16,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 4,
-                      children:
-                          taskData.myTags
-                              .map(
-                        (tagName) =>
-                            GestureDetector(
+                      children: taskData.myTags.map((tagName) {
+                        return GestureDetector(
                           onTap: () {
-                            taskData
-                                .setHomeMode(
-                              'tag',
-                              param:
-                                  tagName,
-                            );
-                            Navigator.pop(
-                              context,
-                            );
+                            taskData.setHomeMode('tag', param: tagName);
+                            Navigator.pop(context);
                           },
-                          onLongPress:
-                              () =>
-                                  _showEditTagDialog(
-                            tagName,
-                          ),
-                          child:
-                              Container(
-                            padding:
-                                const EdgeInsets
-                                    .symmetric(
-                              horizontal:
-                                  12,
-                              vertical:
-                                  8,
+                          onLongPress: () => _showEditTagDialog(tagName),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
                             ),
-                            decoration:
-                                BoxDecoration(
-                              color: Colors
-                                  .lightBlue
-                                  .shade50,
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                16,
-                              ),
+                            decoration: BoxDecoration(
+                              color: Colors.lightBlue.shade50,
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: Text(
                               tagName,
-                              style:
-                                  const TextStyle(
-                                fontSize:
-                                    12,
-                                color:
-                                    Colors.black87,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
                               ),
                             ),
                           ),
-                        ),
-                      )
-                              .toList(),
+                        );
+                      }).toList(),
                     ),
                   ),
                 ],
               ],
             ),
           ),
-
           appBar: AppBar(
             elevation: 0,
-            backgroundColor:
-                const Color(
-              0xFFE6F1FB,
-            ),
-            iconTheme:
-                const IconThemeData(
-              color:
-                  Colors.lightBlue,
-            ),
-            centerTitle:
-                taskData.currentHomeMode !=
-                    'todo',
+            backgroundColor: const Color(0xFFE6F1FB),
+            iconTheme: const IconThemeData(color: Colors.lightBlue),
+            centerTitle: taskData.currentHomeMode != 'todo',
             title: Text(
               appBarTitle,
-              style:
-                  TextStyle(
-                color:
-                    appBarColor,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              style: TextStyle(color: appBarColor, fontWeight: FontWeight.bold),
             ),
             actions: [
               IconButton(
                 icon: Badge(
-                  isLabelVisible:
-                      taskData
-                          .inboxTasks
-                          .isNotEmpty,
-                  backgroundColor:
-                      Colors.lightBlue,
+                  isLabelVisible: taskData.inboxTasks.isNotEmpty,
+                  backgroundColor: Colors.lightBlue,
                   label: Text(
                     '${taskData.inboxTasks.length}',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize:
-                          11,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
                   ),
-                  child:
-                      const Icon(
-                    Icons.inbox,
-                  ),
+                  child: const Icon(Icons.inbox),
                 ),
-                onPressed:
-                    _showInboxMenu,
+                onPressed: _showInboxMenu,
               ),
             ],
           ),
-
-          body:
-              taskData.currentHomeMode ==
-                      'todo'
-                  ? _buildTodoBody()
-                  : _buildGroupedBody(),
-
-          floatingActionButton:
-              FloatingActionButton(
+          body: taskData.currentHomeMode == 'todo'
+              ? _buildTodoBody()
+              : _buildGroupedBody(),
+          floatingActionButton: FloatingActionButton(
             elevation: 2,
-            backgroundColor:
-                Colors.lightBlue,
-            foregroundColor:
-                Colors.white,
-            onPressed: () {
-              showTaskBottomSheet(
-                context,
-                defaultDate:
-                    taskData.currentHomeMode ==
-                            'todo'
-                        ? _selectedDate
-                        : DateTime.now(),
-                defaultList:
-                    taskData.currentHomeMode ==
-                            'list'
-                        ? taskData
-                            .currentHomeParam
-                        : null,
-                defaultTags:
-                    taskData.currentHomeMode ==
-                            'tag'
-                        ? [
-                            taskData
-                                .currentHomeParam!
-                          ]
-                        : null,
-              );
-            },
-            child: const Icon(
-              Icons.add,
-              size: 28,
+            backgroundColor: Colors.lightBlue,
+            foregroundColor: Colors.white,
+            onPressed: () => showTaskBottomSheet(
+              context,
+              defaultDate: taskData.currentHomeMode == 'todo'
+                  ? _selectedDate
+                  : DateTime.now(),
+              defaultList: taskData.currentHomeMode == 'list'
+                  ? taskData.currentHomeParam
+                  : null,
+              defaultTags: taskData.currentHomeMode == 'tag'
+                  ? [taskData.currentHomeParam!]
+                  : null,
             ),
+            child: const Icon(Icons.add, size: 28),
           ),
         );
       },
@@ -1642,248 +883,143 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTodoBody() {
-    final weekStrings = [
-      '一',
-      '二',
-      '三',
-      '四',
-      '五',
-      '六',
-      '日',
-    ];
+    final weekStrings = ['一', '二', '三', '四', '五', '六', '日'];
 
     return Column(
       children: [
         Container(
-          color:
-              const Color(0xFFE6F1FB),
-          padding:
-              const EdgeInsets.only(
-            bottom: 16,
-          ),
-          child: Container(
+          color: const Color(0xFFE6F1FB),
+          padding: const EdgeInsets.only(bottom: 16),
+          child: SizedBox(
             height: 70,
-            constraints:
-                const BoxConstraints(
-              maxHeight: 70,
-            ),
-            child:
-                PageView.builder(
-              controller:
-                  _pageController,
-              itemBuilder:
-                  (
-                context,
-                pageIndex,
-              ) {
-                final offset =
-                    pageIndex - 500;
-
-                final monday =
-                    _baseMonday.add(
-                  Duration(
-                    days:
-                        offset * 7,
-                  ),
-                );
-
-                final weekDays =
-                    List.generate(
+            child: PageView.builder(
+              controller: _pageController,
+              itemBuilder: (context, pageIndex) {
+                final offset = pageIndex - 500;
+                final monday = _baseMonday.add(Duration(days: offset * 7));
+                final weekDays = List.generate(
                   7,
-                  (i) =>
-                      monday.add(
-                    Duration(
-                      days: i,
-                    ),
-                  ),
+                  (i) => monday.add(Duration(days: i)),
                 );
 
                 return Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment
-                          .spaceEvenly,
-                  children:
-                      weekDays.map(
-                    (date) {
-                      final isSelected =
-                          date.year ==
-                                  _selectedDate
-                                      .year &&
-                              date.month ==
-                                  _selectedDate
-                                      .month &&
-                              date.day ==
-                                  _selectedDate
-                                      .day;
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: weekDays.map((date) {
+                    final isSelected =
+                        date.year == _selectedDate.year &&
+                        date.month == _selectedDate.month &&
+                        date.day == _selectedDate.day;
+                    final dayTasks = taskData.getTasksByDate(date);
+                    final taskCount = dayTasks.length;
+                    final hasUnfinishedTodo = dayTasks.any(
+                      (t) => !t.isEvent && !t.isDone,
+                    );
 
-                      final isToday =
-                          date.year ==
-                                  DateTime.now()
-                                      .year &&
-                              date.month ==
-                                  DateTime.now()
-                                      .month &&
-                              date.day ==
-                                  DateTime.now()
-                                      .day;
-
-                      return GestureDetector(
-                        onTap: () {
-                          setState(
-                            () {
-                              _selectedDate =
-                                  date;
-                            },
-                          );
-                        },
-                        child:
-                            Container(
-                          width: 40,
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            vertical:
-                                4,
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedDate = date),
+                      child: SizedBox(
+                        width: 45,
+                        height: 62,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.lightBlue : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.lightBlue.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : null,
                           ),
-                          decoration:
-                              BoxDecoration(
-                            color: isSelected
-                                ? Colors
-                                    .lightBlue
-                                : Colors
-                                    .transparent,
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              8,
-                            ),
-                          ),
-                          child:
-                              Column(
-                            mainAxisAlignment:
-                                MainAxisAlignment
-                                    .center,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                weekStrings[
-                                    date.weekday -
-                                        1],
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      10,
+                                weekStrings[date.weekday - 1],
+                                style: TextStyle(
+                                  fontSize: 11,
                                   color: isSelected
                                       ? Colors.white
-                                      : (date.weekday >= 6
-                                          ? Colors.lightBlue
-                                          : Colors.grey),
+                                      : Colors.grey,
+                                  height: 1.0,
                                 ),
                               ),
-                              const SizedBox(
-                                height: 4,
-                              ),
+                              const SizedBox(height: 3),
                               Text(
                                 '${date.day}',
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      16,
-                                  fontWeight:
-                                      isToday
-                                          ? FontWeight.bold
-                                          : FontWeight.w500,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                   color: isSelected
                                       ? Colors.white
                                       : Colors.black87,
+                                  height: 1.0,
                                 ),
                               ),
-                              const SizedBox(
-                                height: 2,
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                height: 13,
+                                child: taskCount > 0
+                                    ? Center(
+                                        child: Text(
+                                          '$taskCount',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: isSelected
+                                                ? (hasUnfinishedTodo
+                                                      ? Colors.red.shade100
+                                                      : Colors.white)
+                                                : (hasUnfinishedTodo
+                                                      ? Colors.red
+                                                      : Colors.grey),
+                                            fontWeight: FontWeight.bold,
+                                            height: 1,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
                               ),
-                              if (isToday)
-                                Container(
-                                  width: 4,
-                                  height: 4,
-                                  decoration:
-                                      const BoxDecoration(
-                                    color:
-                                        Colors.lightBlue,
-                                    shape:
-                                        BoxShape.circle,
-                                  ),
-                                )
-                              else
-                                const SizedBox(
-                                  height: 4,
-                                ),
                             ],
                           ),
                         ),
-                      );
-                    },
-                  ).toList(),
+                      ),
+                    );
+                  }).toList(),
                 );
               },
             ),
           ),
         ),
-
         Expanded(
           child: Builder(
             builder: (context) {
-              final dailyTasks =
-                  taskData.getTasksByDate(
-                _selectedDate,
-              );
+              final dailyTasks = taskData.getTasksByDate(_selectedDate);
 
               if (dailyTasks.isEmpty) {
                 return const Center(
-                  child: Text(
-                    '这天没有安排待办',
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.grey,
-                    ),
-                  ),
+                  child: Text('这天没有安排待办', style: TextStyle(color: Colors.grey)),
                 );
               }
 
               return ReorderableListView.builder(
-                padding:
-                    EdgeInsets.zero,
-                itemCount:
-                    dailyTasks.length,
-                onReorder:
-                    (
-                  oldIndex,
-                  newIndex,
-                ) =>
-                        taskData
-                            .reorderDailyTasks(
+                padding: EdgeInsets.zero,
+                itemCount: dailyTasks.length,
+                onReorder: (oldIndex, newIndex) => taskData.reorderDailyTasks(
                   _selectedDate,
                   oldIndex,
                   newIndex,
                 ),
-                itemBuilder:
-                    (
-                  context,
-                  index,
-                ) {
-                  final task =
-                      dailyTasks[index];
-
+                itemBuilder: (context, index) {
+                  final task = dailyTasks[index];
                   return Material(
-                    key: ValueKey(
-                      'todo_mat_${task.id}',
-                    ),
-                    color:
-                        Colors.transparent,
-                    child:
-                        _buildTaskTile(
-                      task,
-                      _selectedDate,
-                    ),
+                    key: ValueKey('todo_mat_${task.id}'),
+                    color: Colors.transparent,
+                    child: _buildTaskTile(task, _selectedDate),
                   );
                 },
               );
@@ -1895,80 +1031,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildGroupedBody() {
-    final tasks =
-        taskData.allTasks.where(
-      (t) {
-        if (taskData.currentHomeMode ==
-                'list' &&
-            t.listName !=
-                taskData.currentHomeParam) {
-          return false;
-        }
-
-        if (taskData.currentHomeMode ==
-                'tag' &&
-            !t.tags.contains(
-              taskData.currentHomeParam,
-            )) {
-          return false;
-        }
-
-        return true;
-      },
-    ).toList();
+    final tasks = taskData.allTasks.where((t) {
+      if (taskData.currentHomeMode == 'list' &&
+          t.listName != taskData.currentHomeParam)
+        return false;
+      if (taskData.currentHomeMode == 'tag' &&
+          !t.tags.contains(taskData.currentHomeParam))
+        return false;
+      return true;
+    }).toList();
 
     if (tasks.isEmpty) {
       return const Center(
-        child: Text(
-          '这里空空如也~',
-          style:
-              TextStyle(
-            color: Colors.grey,
-          ),
-        ),
+        child: Text('这里空空如也~', style: TextStyle(color: Colors.grey)),
       );
     }
 
-    final pastDone =
-        <Task>[];
+    final pastDone = <Task>[];
+    final pastUndone = <Task>[];
+    final pastEvents = <Task>[];
+    final todayT = <Task>[];
+    final tomorrowT = <Task>[];
+    final dayAfterT = <Task>[];
+    final laterT = <Task>[];
+    final noDateT = <Task>[];
 
-    final pastUndone =
-        <Task>[];
-
-    final todayT =
-        <Task>[];
-
-    final tomorrowT =
-        <Task>[];
-
-    final dayAfterT =
-        <Task>[];
-
-    final laterT =
-        <Task>[];
-
-    final noDateT =
-        <Task>[];
-
-    final now =
-        DateTime.now();
-
-    final today =
-        DateTime(
-      now.year,
-      now.month,
-      now.day,
-    );
-
-    final tomorrow =
-        today.add(
-      const Duration(days: 1),
-    );
-
-    final dayAfter =
-        today.add(
-      const Duration(days: 2),
-    );
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final dayAfter = today.add(const Duration(days: 2));
 
     for (final t in tasks) {
       if (t.date == null) {
@@ -1976,339 +1067,155 @@ class _HomePageState extends State<HomePage> {
         continue;
       }
 
-      final d = DateTime(
-        t.date!.year,
-        t.date!.month,
-        t.date!.day,
-      );
+      final d = DateTime(t.date!.year, t.date!.month, t.date!.day);
 
       if (d.isBefore(today)) {
-        /*
-         * 事件没有完成状态。
-         * 所以不会进入“过去完成 / 过去未完成”。
-         */
         if (t.isEvent) {
-          laterT.add(t);
+          pastEvents.add(t);
         } else if (t.isDone) {
           pastDone.add(t);
         } else {
           pastUndone.add(t);
         }
-      } else if (d.isAtSameMomentAs(
-        today,
-      )) {
+      } else if (d.isAtSameMomentAs(today)) {
         todayT.add(t);
-      } else if (d.isAtSameMomentAs(
-        tomorrow,
-      )) {
+      } else if (d.isAtSameMomentAs(tomorrow)) {
         tomorrowT.add(t);
-      } else if (d.isAtSameMomentAs(
-        dayAfter,
-      )) {
+      } else if (d.isAtSameMomentAs(dayAfter)) {
         dayAfterT.add(t);
       } else {
         laterT.add(t);
       }
     }
 
-    final List<dynamic>
-        flatItems = [];
+    final flatItems = <dynamic>[];
 
-    void addGroup(
-      String title,
-      List<Task> list,
-    ) {
-      if (list.isEmpty) {
-        return;
-      }
-
+    void addGroup(String title, List<Task> list) {
+      if (list.isEmpty) return;
       flatItems.add(title);
-
-      if (_groupExpanded[title] ==
-          true) {
-        flatItems.addAll(list);
-      }
+      if (_groupExpanded[title] == true) flatItems.addAll(list);
     }
 
-    addGroup(
-      '过去完成',
-      pastDone,
-    );
-    addGroup(
-      '过去未完成',
-      pastUndone,
-    );
-    addGroup(
-      '今天',
-      todayT,
-    );
-    addGroup(
-      '明天',
-      tomorrowT,
-    );
-    addGroup(
-      '后天',
-      dayAfterT,
-    );
-    addGroup(
-      '后续',
-      laterT,
-    );
-    addGroup(
-      '无日期 (待办箱)',
-      noDateT,
-    );
+    addGroup('过去完成', pastDone);
+    addGroup('过去未完成', pastUndone);
+    addGroup('过去事件', pastEvents);
+    addGroup('今天', todayT);
+    addGroup('明天', tomorrowT);
+    addGroup('后天', dayAfterT);
+    addGroup('后续', laterT);
+    addGroup('无日期 (待办箱)', noDateT);
 
     return ReorderableListView.builder(
-      padding:
-          const EdgeInsets.only(
-        bottom: 80,
-      ),
-      buildDefaultDragHandles:
-          false,
-      itemCount:
-          flatItems.length,
-      onReorder:
-          (
-        oldIndex,
-        newIndex,
-      ) {
-        if (oldIndex <
-            newIndex) {
-          newIndex -= 1;
-        }
+      padding: const EdgeInsets.only(bottom: 80),
+      buildDefaultDragHandles: false,
+      itemCount: flatItems.length,
+      onReorder: (oldIndex, newIndex) {
+        if (oldIndex < newIndex) newIndex--;
+        final item = flatItems[oldIndex];
+        if (item is String) return;
 
-        final item =
-            flatItems[oldIndex];
-
-        if (item is String) {
-          return;
-        }
-
-        final task =
-            item as Task;
-
+        final task = item as Task;
         String? newGroupName;
 
-        for (
-          int i = newIndex;
-          i >= 0;
-          i--
-        ) {
-          if (i <
-                  flatItems
-                      .length &&
-              flatItems[i] is String) {
-            newGroupName =
-                flatItems[i] as String;
+        for (int i = newIndex; i >= 0; i--) {
+          if (i < flatItems.length && flatItems[i] is String) {
+            newGroupName = flatItems[i] as String;
             break;
           }
         }
 
-        newGroupName ??=
-            '今天';
+        newGroupName ??= '今天';
 
         Task? anchorTask;
-        bool insertAfter = false;
+        var insertAfter = false;
 
-        if (newIndex <
-                flatItems.length &&
-            flatItems[newIndex] is Task) {
-          anchorTask =
-              flatItems[newIndex]
-                  as Task;
-
-          insertAfter = false;
-        } else if (newIndex - 1 >=
-                0 &&
-            flatItems[newIndex - 1]
-                is Task) {
-          anchorTask =
-              flatItems[newIndex - 1]
-                  as Task;
-
+        if (newIndex < flatItems.length && flatItems[newIndex] is Task) {
+          anchorTask = flatItems[newIndex] as Task;
+        } else if (newIndex - 1 >= 0 && flatItems[newIndex - 1] is Task) {
+          anchorTask = flatItems[newIndex - 1] as Task;
           insertAfter = true;
         }
 
-        DateTime? targetDate =
-            task.date;
-
-        if (newGroupName ==
-            '今天') {
-          targetDate =
-              today;
-        } else if (newGroupName ==
-            '明天') {
-          targetDate =
-              today.add(
-            const Duration(
-              days: 1,
-            ),
-          );
-        } else if (newGroupName ==
-            '后天') {
-          targetDate =
-              today.add(
-            const Duration(
-              days: 2,
-            ),
-          );
-        } else if (newGroupName ==
-            '后续') {
-          targetDate =
-              today.add(
-            const Duration(
-              days: 3,
-            ),
-          );
-        } else if (newGroupName ==
-            '无日期 (待办箱)') {
+        DateTime? targetDate = task.date;
+        if (newGroupName == '今天') {
+          targetDate = today;
+        } else if (newGroupName == '明天') {
+          targetDate = tomorrow;
+        } else if (newGroupName == '后天') {
+          targetDate = dayAfter;
+        } else if (newGroupName == '后续') {
+          targetDate = today.add(const Duration(days: 3));
+        } else if (newGroupName == '无日期 (待办箱)') {
           targetDate = null;
-        } else if (newGroupName ==
-                '过去未完成' ||
-            newGroupName ==
-                '过去完成') {
+        } else if (newGroupName == '过去未完成' || newGroupName == '过去完成') {
           if (task.date == null ||
-              task.date!.isAfter(
-                today,
-              ) ||
-              task.date!
-                  .isAtSameMomentAs(
-                today,
-              )) {
-            targetDate =
-                today.subtract(
-              const Duration(
-                days: 1,
-              ),
-            );
+              task.date!.isAfter(today) ||
+              task.date!.isAtSameMomentAs(today)) {
+            targetDate = today.subtract(const Duration(days: 1));
           }
         }
 
-        taskData.moveTaskGlobally(
-          task,
-          targetDate,
-          anchorTask,
-          insertAfter,
-        );
+        taskData.moveTaskGlobally(task, targetDate, anchorTask, insertAfter);
       },
-      itemBuilder:
-          (context, index) {
-        final item =
-            flatItems[index];
+      itemBuilder: (context, index) {
+        final item = flatItems[index];
 
         if (item is String) {
           return Container(
-            key: ValueKey(
-              'header_$item',
-            ),
-            color:
-                Colors.white,
+            key: ValueKey('header_$item'),
+            color: Colors.white,
             child: ListTile(
               title: Text(
-                '$item',
-                style:
-                    const TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
+                item,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
               ),
               trailing: Icon(
-                _groupExpanded[item] ==
-                        true
+                _groupExpanded[item] == true
                     ? Icons.expand_less
                     : Icons.expand_more,
-                color:
-                    Colors.grey,
+                color: Colors.grey,
               ),
-              onTap: () {
-                setState(
-                  () {
-                    _groupExpanded[
-                            item] =
-                        !_groupExpanded[
-                            item]!;
-                  },
-                );
-              },
+              onTap: () =>
+                  setState(() => _groupExpanded[item] = !_groupExpanded[item]!),
             ),
           );
         }
 
-        final task =
-            item as Task;
-
+        final task = item as Task;
         return ReorderableDelayedDragStartListener(
-          key: ValueKey(
-            'task_drag_${task.id}',
-          ),
+          key: ValueKey('task_drag_${task.id}'),
           index: index,
           child: Material(
-            color:
-                Colors.transparent,
-            child:
-                _buildTaskTile(
-              task,
-              task.date,
-            ),
+            color: Colors.transparent,
+            child: _buildTaskTile(task, task.date),
           ),
         );
       },
     );
   }
 
-  Future<bool?> _askRepeatAction(
-    BuildContext context,
-    String actionName,
-  ) async {
+  Future<bool?> _askRepeatAction(BuildContext context, String actionName) {
     return showDialog<bool>(
       context: context,
-      builder: (c) =>
-          AlertDialog(
+      builder: (c) => AlertDialog(
         title: Text(
           actionName,
-          style:
-              const TextStyle(
-            color:
-                Colors.lightBlue,
-          ),
+          style: const TextStyle(color: Colors.lightBlue),
         ),
-        content:
-            const Text(
-          '这是一个重复事件，您希望将操作应用到哪些事件？',
-        ),
+        content: const Text('这是一个重复事件，您希望将操作应用到哪些事件？'),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(
-              c,
-              false,
-            ),
-            child:
-                const Text(
-              '仅当前事件',
-              style:
-                  TextStyle(
-                color:
-                    Colors.black87,
-              ),
-            ),
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('仅当前事件', style: TextStyle(color: Colors.black87)),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(
-              c,
-              true,
-            ),
-            child:
-                const Text(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text(
               '所有后续事件',
-              style:
-                  TextStyle(
-                color:
-                    Colors.lightBlue,
-              ),
+              style: TextStyle(color: Colors.lightBlue),
             ),
           ),
         ],
@@ -2316,388 +1223,208 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildTaskTile(
-    Task task,
-    DateTime? defaultDate,
-  ) {
-    final listColor =
-        taskData.getListColor(
-      task.listName ?? '',
-    );
+  Widget _buildTaskTile(Task task, DateTime? defaultDate) {
+    final listColor = taskData.getListColor(task.listName ?? '');
+    final showSidebarDate =
+        taskData.currentHomeMode == 'list' || taskData.currentHomeMode == 'tag';
+    final taskDateText = task.date == null
+        ? null
+        : '${task.date!.month}/${task.date!.day}${task.time != null ? ' ${task.time!.format(context)}' : ''}';
 
     return Slidable(
-      key: ValueKey(
-        'slidable_${task.id}',
-      ),
-      endActionPane:
-          ActionPane(
-        motion:
-            const ScrollMotion(),
-        extentRatio:
-            0.6,
+      key: ValueKey('slidable_${task.id}'),
+      endActionPane: ActionPane(
+        motion: const ScrollMotion(),
+        extentRatio: 0.6,
         children: [
           SlidableAction(
-            onPressed:
-                (context) async {
-              bool doAll = false;
-
-              if (task.repeatGroupId !=
-                  null) {
-                final result =
-                    await _askRepeatAction(
-                  context,
-                  '置顶',
-                );
-
-                if (result == null) {
-                  return;
-                }
-
+            onPressed: (context) async {
+              var doAll = false;
+              if (task.repeatGroupId != null) {
+                final result = await _askRepeatAction(context, '置顶');
+                if (result == null) return;
                 doAll = result;
               }
-
-              taskData.pinTaskGlobally(
-                task,
-                true,
-                pinAllFuture:
-                    doAll,
-              );
+              taskData.pinTaskGlobally(task, true, pinAllFuture: doAll);
             },
-            backgroundColor:
-                Colors.blue.shade400,
-            foregroundColor:
-                Colors.white,
-            icon:
-                Icons.vertical_align_top,
-            label:
-                '置顶',
+            backgroundColor: Colors.blue.shade400,
+            foregroundColor: Colors.white,
+            icon: Icons.vertical_align_top,
+            label: '置顶',
           ),
           SlidableAction(
-            onPressed:
-                (context) async {
-              bool doAll = false;
-
-              if (task.repeatGroupId !=
-                  null) {
-                final result =
-                    await _askRepeatAction(
-                  context,
-                  '置底',
-                );
-
-                if (result == null) {
-                  return;
-                }
-
+            onPressed: (context) async {
+              var doAll = false;
+              if (task.repeatGroupId != null) {
+                final result = await _askRepeatAction(context, '置底');
+                if (result == null) return;
                 doAll = result;
               }
-
-              taskData.pinTaskGlobally(
-                task,
-                false,
-                pinAllFuture:
-                    doAll,
-              );
+              taskData.pinTaskGlobally(task, false, pinAllFuture: doAll);
             },
-            backgroundColor:
-                Colors.grey.shade600,
-            foregroundColor:
-                Colors.white,
-            icon:
-                Icons.vertical_align_bottom,
-            label:
-                '置底',
+            backgroundColor: Colors.grey.shade600,
+            foregroundColor: Colors.white,
+            icon: Icons.vertical_align_bottom,
+            label: '置底',
           ),
           SlidableAction(
-            onPressed:
-                (context) async {
-              bool doAll = false;
-
-              if (task.repeatGroupId !=
-                  null) {
-                final result =
-                    await _askRepeatAction(
-                  context,
-                  '删除',
-                );
-
-                if (result == null) {
-                  return;
-                }
-
+            onPressed: (context) async {
+              var doAll = false;
+              if (task.repeatGroupId != null) {
+                final result = await _askRepeatAction(context, '删除');
+                if (result == null) return;
                 doAll = result;
               }
-
-              taskData.deleteTask(
-                task.id,
-                deleteAllFuture:
-                    doAll,
-              );
+              taskData.deleteTask(task.id, deleteAllFuture: doAll);
             },
-            backgroundColor:
-                Colors.red.shade400,
-            foregroundColor:
-                Colors.white,
-            icon:
-                Icons.delete,
-            label:
-                '删除',
+            backgroundColor: Colors.red.shade400,
+            foregroundColor: Colors.white,
+            icon: Icons.delete,
+            label: '删除',
           ),
         ],
       ),
       child: Container(
-        decoration:
-            BoxDecoration(
-          color:
-              Colors.white,
-          border:
-              Border(
-            bottom:
-                BorderSide(
-              color: Colors
-                  .grey
-                  .shade100,
-              width: 1,
-            ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade100, width: 1),
           ),
         ),
         child: ListTile(
-          contentPadding:
-              const EdgeInsets
-                  .symmetric(
-            horizontal: 16,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           minLeadingWidth: 24,
-
-          /*
-           * 事件不显示完成按钮。
-           */
           leading: task.isEvent
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                )
+              ? const SizedBox(width: 24, height: 24)
               : SizedBox(
                   width: 24,
                   height: 24,
                   child: Checkbox(
-                    value:
-                        task.isDone,
-                    activeColor:
-                        listColor,
-                    side:
-                        BorderSide(
-                      color:
-                          listColor,
-                      width: 2,
-                    ),
-                    onChanged:
-                        (_) =>
-                            taskData
-                                .toggleTaskDone(
-                      task.id,
-                    ),
+                    value: task.isDone,
+                    activeColor: listColor,
+                    side: BorderSide(color: listColor, width: 2),
+                    onChanged: (_) => taskData.toggleTaskDone(task.id),
                   ),
                 ),
-
-          onTap: () =>
-              showTaskBottomSheet(
+          onTap: () => showTaskBottomSheet(
             context,
-            existingTask:
-                task,
-            defaultDate:
-                defaultDate,
+            existingTask: task,
+            defaultDate: defaultDate,
           ),
-
           title: Wrap(
-            crossAxisAlignment:
-                WrapCrossAlignment
-                    .center,
+            crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 6,
             children: [
               Text(
                 task.title,
-                style:
-                    TextStyle(
-                  decoration:
-                      (!task.isEvent &&
-                              task.isDone)
-                          ? TextDecoration
-                              .lineThrough
-                          : null,
-                  color:
-                      task.isEvent
-                          ? Colors
-                              .black87
-                          : (task.isDone
-                              ? Colors
-                                  .grey
-                              : Colors
-                                  .black87),
+                style: TextStyle(
+                  decoration: (!task.isEvent && task.isDone)
+                      ? TextDecoration.lineThrough
+                      : null,
+                  color: task.isEvent
+                      ? Colors.black87
+                      : (task.isDone ? Colors.grey : Colors.black87),
                 ),
               ),
-
-              if (task.repeatGroupId !=
-                  null)
-                const Icon(
-                  Icons.repeat,
-                  size: 14,
-                  color:
-                      Colors.lightBlue,
-                ),
-
+              if (task.repeatGroupId != null)
+                const Icon(Icons.repeat, size: 14, color: Colors.lightBlue),
               ...task.tags.map(
-                (tag) =>
-                    Container(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
+                (tag) => Container(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 4,
                     vertical: 1,
                   ),
-                  decoration:
-                      BoxDecoration(
-                    color: Colors
-                        .lightBlue
-                        .shade50,
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      4,
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.lightBlue.shade50,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     tag,
-                    style:
-                        const TextStyle(
+                    style: const TextStyle(
                       fontSize: 10,
-                      color: Colors
-                          .lightBlue,
+                      color: Colors.lightBlue,
                     ),
                   ),
                 ),
               ),
             ],
           ),
-
           subtitle:
-              (task.description
-                          .isNotEmpty ||
-                      task.time != null ||
-                      task.repeatRuleText !=
-                          null)
-                  ? Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-                      children: [
-                        if (task.description
-                            .isNotEmpty)
-                          Text(
-                            task.description,
-                            style:
-                                const TextStyle(
-                              fontSize:
-                                  13,
-                            ),
-                          ),
-                        Padding(
-                          padding:
-                              const EdgeInsets
-                                  .only(
-                            top: 4,
-                            bottom: 4,
-                          ),
-                          child:
-                              Row(
-                            children: [
-                              if (task.time !=
-                                  null) ...[
-                                const Icon(
-                                  Icons
-                                      .access_time,
-                                  size:
-                                      12,
-                                  color: Colors
-                                      .grey,
-                                ),
-                                const SizedBox(
-                                  width:
-                                      4,
-                                ),
-                                Text(
-                                  task.time!
-                                      .format(
-                                    context,
-                                  ),
-                                  style:
-                                      const TextStyle(
-                                    fontSize:
-                                        12,
-                                    color:
-                                        Colors.grey,
-                                  ),
-                                ),
-                              ],
-                              if (task.repeatRuleText !=
-                                  null) ...[
-                                if (task.time !=
-                                    null)
-                                  const SizedBox(
-                                    width:
-                                        8,
-                                  ),
-                                Text(
-                                  task.repeatRuleText!,
-                                  style:
-                                      const TextStyle(
-                                    fontSize:
-                                        12,
-                                    color: Colors
-                                        .lightBlue,
-                                  ),
-                                ),
-                              ],
-                              if (task.addToCalendar) ...[
-                                const SizedBox(
-                                  width:
-                                      8,
-                                ),
-                                const Icon(
-                                  Icons
-                                      .event_available,
-                                  size:
-                                      12,
-                                  color:
-                                      Colors.green,
-                                ),
-                              ],
-                            ],
-                          ),
+              (task.description.isNotEmpty ||
+                  task.time != null ||
+                  task.repeatRuleText != null ||
+                  (showSidebarDate && taskDateText != null))
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (task.description.isNotEmpty)
+                      Text(
+                        task.description,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    if (showSidebarDate && taskDateText != null)
+                      Text(
+                        taskDateText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: task.isEvent || task.isDone
+                              ? Colors.grey
+                              : Colors.red,
+                          fontWeight: task.isEvent || task.isDone
+                              ? FontWeight.normal
+                              : FontWeight.bold,
                         ),
-                      ],
-                    )
-                  : null,
-
-          /*
-           * 事件不显示专注按钮。
-           */
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 4),
+                      child: Row(
+                        children: [
+                          if (task.time != null) ...[
+                            const Icon(
+                              Icons.access_time,
+                              size: 12,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              task.time!.format(context),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                          if (task.repeatRuleText != null) ...[
+                            if (task.time != null) const SizedBox(width: 8),
+                            Text(
+                              task.repeatRuleText!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.lightBlue,
+                              ),
+                            ),
+                          ],
+                          if (task.addToCalendar) ...[
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.event_available,
+                              size: 12,
+                              color: Colors.green,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : null,
           trailing: task.isEvent
               ? null
               : IconButton(
-                  icon:
-                      const Icon(
-                    Icons.alarm,
-                    color:
-                        Colors.lightBlue,
-                  ),
+                  icon: const Icon(Icons.alarm, color: Colors.lightBlue),
                   onPressed: () {
-                    taskData.setFocusTask(
-                      task,
-                    );
-
-                    appTabIndex.value =
-                        2;
+                    taskData.setFocusTask(task);
+                    appTabIndex.value = 2;
                   },
                 ),
         ),

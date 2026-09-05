@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/holiday_service.dart';
 
 class RepeatConfig {
@@ -63,20 +64,16 @@ class Task {
   TimeOfDay? time;
   bool addToCalendar;
   String? listName;
-
-  /// 代办完成状态。事件不会使用这个状态。
   bool isDone;
   DateTime? doneDate;
-
-  /// false = 代办，true = 事件
   bool isEvent;
-
   List<String> tags;
   String? repeatGroupId;
   String? repeatRuleText;
-
-  /// 是否为只读系统事件（如法定节假日）
   bool isReadOnly;
+
+  // 逾期累计次数
+  int overdueCount;
 
   Task({
     required this.id,
@@ -93,6 +90,7 @@ class Task {
     this.repeatGroupId,
     this.repeatRuleText,
     this.isReadOnly = false,
+    this.overdueCount = 0,
   });
 
   Task copyWith({
@@ -102,6 +100,7 @@ class Task {
     String? repeatRuleText,
     bool? isEvent,
     bool? isReadOnly,
+    int? overdueCount,
   }) {
     return Task(
       id: id ?? this.id,
@@ -118,6 +117,7 @@ class Task {
       repeatGroupId: repeatGroupId ?? this.repeatGroupId,
       repeatRuleText: repeatRuleText ?? this.repeatRuleText,
       isReadOnly: isReadOnly ?? this.isReadOnly,
+      overdueCount: overdueCount ?? this.overdueCount,
     );
   }
 
@@ -137,6 +137,7 @@ class Task {
         'repeatGroupId': repeatGroupId,
         'repeatRuleText': repeatRuleText,
         'isReadOnly': isReadOnly,
+        'overdueCount': overdueCount,
       };
 
   static Task fromJson(Map<String, dynamic> json) => Task(
@@ -159,6 +160,7 @@ class Task {
         repeatGroupId: json['repeatGroupId'],
         repeatRuleText: json['repeatRuleText'],
         isReadOnly: json['isReadOnly'] ?? false,
+        overdueCount: json['overdueCount'] ?? 0,
       );
 }
 
@@ -173,7 +175,6 @@ class TaskData extends ChangeNotifier {
   String currentHomeMode = 'todo';
   String? currentHomeParam;
 
-  // 节假日开关
   bool enableHolidays = false;
 
   Future<void> loadData() async {
@@ -201,9 +202,8 @@ class TaskData extends ChangeNotifier {
       _tasks.addAll(List<Task>.from(t.map((m) => Task.fromJson(m))));
     }
 
-    // 如果开启了节假日，在启动时静默同步当年及临近年的节假日
     if (enableHolidays) {
-      _syncHolidaysAsync(notify: false);
+      _syncHolidays(notify: false);
     }
   }
 
@@ -227,57 +227,64 @@ class TaskData extends ChangeNotifier {
     );
   }
 
-  // 切换开关
-  void toggleHolidays(bool enable) {
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    saveData();
+  }
+
+  Future<void> toggleHolidays(bool enable) async {
     if (enableHolidays == enable) return;
     enableHolidays = enable;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('monenta_enable_holidays', enableHolidays);
+
     if (enableHolidays) {
-      _syncHolidaysAsync(notify: true);
+      await _syncHolidays(notify: true);
     } else {
       _removeHolidaysFromTasks(notify: true);
     }
   }
 
-  // 异步获取节假日并合并入任务列表
-  Future<void> _syncHolidaysAsync({bool notify = true}) async {
+  Future<void> _syncHolidays({bool notify = true}) async {
     final currentYear = DateTime.now().year;
-    final yearsToFetch = [currentYear - 1, currentYear, currentYear + 1];
+    final years = [currentYear - 1, currentYear, currentYear + 1];
 
-    bool hasNewData = false;
-
-    for (final year in yearsToFetch) {
+    bool changed = false;
+    for (final year in years) {
       final holidays = await HolidayService.fetchHolidaysForYear(year);
-      final existingIds = _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
+      final existingIds =
+          _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
 
       for (final h in holidays) {
         if (!existingIds.contains(h.id)) {
           _tasks.add(h);
-          hasNewData = true;
+          changed = true;
         }
       }
     }
 
-    if (hasNewData || notify) {
+    if (changed || notify) {
       notifyListeners();
     }
   }
 
-  // 检查特定年份是否有节假日，若日历翻到远期年份可动态调用补充
   Future<void> ensureHolidaysForYear(int year) async {
     if (!enableHolidays) return;
-
-    final existingIds = _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
     final holidays = await HolidayService.fetchHolidaysForYear(year);
+    final existingIds =
+        _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
 
-    bool hasNewData = false;
+    bool changed = false;
     for (final h in holidays) {
       if (!existingIds.contains(h.id)) {
         _tasks.add(h);
-        hasNewData = true;
+        changed = true;
       }
     }
 
-    if (hasNewData) {
+    if (changed) {
       notifyListeners();
     }
   }
@@ -286,8 +293,6 @@ class TaskData extends ChangeNotifier {
     _tasks.removeWhere((t) => t.id.startsWith('holiday_') || t.isReadOnly);
     if (notify) notifyListeners();
   }
-
-  // ... 保持 editTaskFull、deleteTask、pinTaskGlobally 等防篡改逻辑不变 ...
 
   void setHomeMode(String mode, {String? param}) {
     currentHomeMode = mode;
@@ -480,6 +485,34 @@ class TaskData extends ChangeNotifier {
     notifyListeners();
   }
 
+  // 逾期判定辅助方法
+  bool _checkIsOverdue(Task task, DateTime? newDate) {
+    if (task.isEvent || task.isDone || task.isReadOnly || task.date == null || newDate == null) {
+      return false;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final oldDay = DateTime(task.date!.year, task.date!.month, task.date!.day);
+    final targetDay = DateTime(newDate.year, newDate.month, newDate.day);
+
+    // 原日期早于今天，且新日期与原日期不同
+    return oldDay.isBefore(today) && !targetDay.isAtSameMomentAs(oldDay);
+  }
+
+  void updateTaskDate(String id, DateTime? newDate, {bool skipOverdueCount = false}) {
+    final taskIndex = _tasks.indexWhere((t) => t.id == id);
+    if (taskIndex == -1) return;
+    final task = _tasks[taskIndex];
+    if (task.isReadOnly) return;
+
+    if (!skipOverdueCount && _checkIsOverdue(task, newDate)) {
+      task.overdueCount += 1;
+    }
+
+    task.date = newDate;
+    notifyListeners();
+  }
+
   void editTaskFull(
     String id,
     String newTitle,
@@ -491,11 +524,16 @@ class TaskData extends ChangeNotifier {
     List<String> newTags, {
     bool updateFuture = false,
     bool? newIsEvent,
+    bool skipOverdueCount = false,
   }) {
     final taskIndex = _tasks.indexWhere((t) => t.id == id);
     if (taskIndex == -1) return;
     final task = _tasks[taskIndex];
     if (task.isReadOnly) return;
+
+    if (!skipOverdueCount && _checkIsOverdue(task, newDate)) {
+      task.overdueCount += 1;
+    }
 
     if (updateFuture && task.repeatGroupId != null) {
       final relatedTasks = _tasks.where(
@@ -633,14 +671,6 @@ class TaskData extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateTaskDate(String id, DateTime? newDate) {
-    final task = _tasks.firstWhere((t) => t.id == id);
-    if (task.isReadOnly) return;
-
-    task.date = newDate;
-    notifyListeners();
-  }
-
   void updateTaskList(String id, String? newList) {
     final task = _tasks.firstWhere((t) => t.id == id);
     if (task.isReadOnly) return;
@@ -686,6 +716,11 @@ class TaskData extends ChangeNotifier {
 
   void moveTaskGlobally(Task task, DateTime? newDate, Task? anchorTask, bool insertAfter) {
     if (task.isReadOnly) return;
+
+    // 拖拽至新日期时触发逾期判定
+    if (_checkIsOverdue(task, newDate)) {
+      task.overdueCount += 1;
+    }
 
     task.date = newDate;
     _tasks.remove(task);

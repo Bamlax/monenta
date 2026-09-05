@@ -12,6 +12,16 @@ class VersionRecord {
 
 // 🔴 所有的版本更新记录存在这里
 const List<VersionRecord> versionHistory = [
+      VersionRecord(
+    version: 'v1.4.0',
+    date: '2026-09-5',
+    updates: [
+      '新增：逾期功能',
+      '新增：分类栏之前的分割线',
+      '修复：最近代办无过去未完成',
+      '修复：节假日无法显示的问题',
+    ],
+  ),
     VersionRecord(
     version: 'v1.3.0',
     date: '2026-09-4',

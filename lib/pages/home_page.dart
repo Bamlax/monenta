@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/task_data.dart';
@@ -34,9 +33,47 @@ class _HomePageState extends State<HomePage> {
     _baseMonday = now.subtract(Duration(days: now.weekday - 1));
   }
 
-  Widget _buildSegmentedDateBtn(String label, VoidCallback onTap) {
+  Future<void> confirmSkipOverdueDialog(
+    BuildContext ctx,
+    VoidCallback onConfirm,
+  ) async {
+    await showDialog(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        title: const Text(
+          '提示',
+          style: TextStyle(
+            color: Colors.lightBlue,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text('长按更改日期不会统计逾期'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('取消', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              onConfirm();
+              Navigator.pop(c);
+            },
+            child: const Text('确定', style: TextStyle(color: Colors.lightBlue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentedDateBtn(
+    String label,
+    VoidCallback onTap, {
+    VoidCallback? onLongPress,
+  }) {
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: Text(
@@ -159,6 +196,14 @@ class _HomePageState extends State<HomePage> {
                               task.id,
                               DateTime.now(),
                             ),
+                            onLongPress: () => confirmSkipOverdueDialog(
+                              context,
+                              () => taskData.updateTaskDate(
+                                task.id,
+                                DateTime.now(),
+                                skipOverdueCount: true,
+                              ),
+                            ),
                           ),
                           Container(
                             width: 1,
@@ -171,23 +216,50 @@ class _HomePageState extends State<HomePage> {
                               task.id,
                               DateTime.now().add(const Duration(days: 1)),
                             ),
+                            onLongPress: () => confirmSkipOverdueDialog(
+                              context,
+                              () => taskData.updateTaskDate(
+                                task.id,
+                                DateTime.now().add(const Duration(days: 1)),
+                                skipOverdueCount: true,
+                              ),
+                            ),
                           ),
                           Container(
                             width: 1,
                             height: 10,
                             color: Colors.lightBlue.shade100,
                           ),
-                          _buildSegmentedDateBtn('📅', () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: DateTime.now(),
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2050),
-                            );
-                            if (!context.mounted) return;
-                            if (picked != null)
-                              taskData.updateTaskDate(task.id, picked);
-                          }),
+                          _buildSegmentedDateBtn(
+                            '📅',
+                            () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2050),
+                              );
+                              if (!context.mounted) return;
+                              if (picked != null)
+                                taskData.updateTaskDate(task.id, picked);
+                            },
+                            onLongPress: () {
+                              confirmSkipOverdueDialog(context, () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2050),
+                                );
+                                if (picked != null)
+                                  taskData.updateTaskDate(
+                                    task.id,
+                                    picked,
+                                    skipOverdueCount: true,
+                                  );
+                              });
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -257,339 +329,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showEditListDialog(TaskList list) {
-    final ctrl = TextEditingController(text: list.name);
-    Color selectedColor = list.color;
-    final colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-      Colors.pink,
-      Colors.amber,
-      Colors.indigo,
-      Colors.cyan,
-    ];
-    bool showCustomColor = false;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setState) {
-            final rCtrl = TextEditingController(
-              text: (selectedColor.r * 255).round().clamp(0, 255).toString(),
-            );
-            final gCtrl = TextEditingController(
-              text: (selectedColor.g * 255).round().clamp(0, 255).toString(),
-            );
-            final bCtrl = TextEditingController(
-              text: (selectedColor.b * 255).round().clamp(0, 255).toString(),
-            );
-
-            Widget buildRgbInput(String label, TextEditingController textCtrl) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    SizedBox(
-                      width: 42,
-                      height: 32,
-                      child: TextField(
-                        controller: textCtrl,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          contentPadding: EdgeInsets.zero,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        onChanged: (_) {
-                          final r =
-                              int.tryParse(rCtrl.text) ??
-                              (selectedColor.r * 255).round();
-                          final g =
-                              int.tryParse(gCtrl.text) ??
-                              (selectedColor.g * 255).round();
-                          final b =
-                              int.tryParse(bCtrl.text) ??
-                              (selectedColor.b * 255).round();
-                          setState(
-                            () => selectedColor = Color.fromARGB(
-                              255,
-                              r.clamp(0, 255),
-                              g.clamp(0, 255),
-                              b.clamp(0, 255),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            void updateFromWheel(double hue, double saturation) {
-              setState(() {
-                selectedColor = HSVColor.fromAHSV(
-                  1,
-                  hue,
-                  saturation,
-                  1,
-                ).toColor();
-                rCtrl.text = (selectedColor.r * 255)
-                    .round()
-                    .clamp(0, 255)
-                    .toString();
-                gCtrl.text = (selectedColor.g * 255)
-                    .round()
-                    .clamp(0, 255)
-                    .toString();
-                bCtrl.text = (selectedColor.b * 255)
-                    .round()
-                    .clamp(0, 255)
-                    .toString();
-              });
-            }
-
-            return AlertDialog(
-              title: const Text(
-                '编辑清单',
-                style: TextStyle(color: Colors.lightBlue),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: ctrl,
-                    autofocus: true,
-                    decoration: const InputDecoration(hintText: '清单名称'),
-                  ),
-                  const SizedBox(height: 16),
-                  if (!showCustomColor)
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        ...colors.map(
-                          (c) => GestureDetector(
-                            onTap: () => setState(() => selectedColor = c),
-                            child: CircleAvatar(
-                              backgroundColor: c,
-                              radius: 16,
-                              child: selectedColor == c
-                                  ? const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 16,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => setState(() => showCustomColor = true),
-                          child: const CircleAvatar(
-                            backgroundColor: Colors.grey,
-                            radius: 16,
-                            child: Icon(
-                              Icons.palette,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Column(
-                      children: [
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            GestureDetector(
-                              onPanUpdate: (details) {
-                                const radius = 75.0;
-                                final dx = details.localPosition.dx - radius;
-                                final dy = details.localPosition.dy - radius;
-                                var angle = atan2(dy, dx);
-                                if (angle < 0) angle += 2 * pi;
-                                final hue = angle * 180 / pi;
-                                final distance = sqrt(dx * dx + dy * dy);
-                                final saturation = (distance / radius).clamp(
-                                  0.0,
-                                  1.0,
-                                );
-                                updateFromWheel(hue, saturation);
-                              },
-                              onTapDown: (details) {
-                                const radius = 75.0;
-                                final dx = details.localPosition.dx - radius;
-                                final dy = details.localPosition.dy - radius;
-                                var angle = atan2(dy, dx);
-                                if (angle < 0) angle += 2 * pi;
-                                final hue = angle * 180 / pi;
-                                final distance = sqrt(dx * dx + dy * dy);
-                                final saturation = (distance / radius).clamp(
-                                  0.0,
-                                  1.0,
-                                );
-                                updateFromWheel(hue, saturation);
-                              },
-                              child: Container(
-                                width: 150,
-                                height: 150,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: SweepGradient(
-                                    colors: [
-                                      Color.fromARGB(255, 255, 0, 0),
-                                      Color.fromARGB(255, 255, 255, 0),
-                                      Color.fromARGB(255, 0, 255, 0),
-                                      Color.fromARGB(255, 0, 255, 255),
-                                      Color.fromARGB(255, 0, 0, 255),
-                                      Color.fromARGB(255, 255, 0, 255),
-                                      Color.fromARGB(255, 255, 0, 0),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Builder(
-                              builder: (context) {
-                                final hsv = HSVColor.fromColor(selectedColor);
-                                final angle = hsv.hue * pi / 180;
-                                final distance = hsv.saturation * 75;
-                                return Transform.translate(
-                                  offset: Offset(
-                                    distance * cos(angle),
-                                    distance * sin(angle),
-                                  ),
-                                  child: Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: selectedColor,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          blurRadius: 4,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            buildRgbInput('R', rCtrl),
-                            buildRgbInput('G', gCtrl),
-                            buildRgbInput('B', bCtrl),
-                          ],
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    taskData.deleteList(list.name);
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('删除', style: TextStyle(color: Colors.red)),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('取消', style: TextStyle(color: Colors.grey)),
-                ),
-                TextButton(
-                  onPressed: () {
-                    if (ctrl.text.trim().isNotEmpty) {
-                      taskData.editList(
-                        list.name,
-                        ctrl.text.trim(),
-                        selectedColor,
-                      );
-                      Navigator.pop(ctx);
-                    }
-                  },
-                  child: const Text(
-                    '保存',
-                    style: TextStyle(color: Colors.lightBlue),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showEditTagDialog(String tag) {
-    final ctrl = TextEditingController(text: tag);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('编辑标签', style: TextStyle(color: Colors.lightBlue)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '标签名称'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              taskData.deleteTag(tag);
-              Navigator.pop(ctx);
-            },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (ctrl.text.trim().isNotEmpty) {
-                taskData.editTag(tag, ctrl.text.trim());
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
-          ),
-        ],
       ),
     );
   }
@@ -692,147 +431,6 @@ class _HomePageState extends State<HomePage> {
 
         return Scaffold(
           backgroundColor: Colors.white,
-          drawer: Drawer(
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.zero,
-            ),
-            backgroundColor: Colors.white,
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                const DrawerHeader(
-                  decoration: BoxDecoration(color: Colors.lightBlue),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Monenta',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        '你的待办与笔记',
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.lightBlue,
-                  ),
-                  title: const Text(
-                    'TODO',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  onTap: () {
-                    taskData.setHomeMode('todo');
-                    Navigator.pop(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.access_time, color: Colors.orange),
-                  title: const Text(
-                    '最近代办',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  onTap: () {
-                    taskData.setHomeMode('recent');
-                    Navigator.pop(context);
-                  },
-                ),
-                if (taskData.myLists.isNotEmpty) ...[
-                  const Divider(height: 20, indent: 16, endIndent: 16),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16, top: 4, bottom: 4),
-                    child: Text(
-                      '我的清单',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  ...taskData.myLists.map(
-                    (list) => ListTile(
-                      leading: Icon(Icons.circle, size: 10, color: list.color),
-                      title: Text(
-                        list.name,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      dense: true,
-                      visualDensity: const VisualDensity(
-                        horizontal: 0,
-                        vertical: -4,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                      ),
-                      onTap: () {
-                        taskData.setHomeMode('list', param: list.name);
-                        Navigator.pop(context);
-                      },
-                      onLongPress: () => _showEditListDialog(list),
-                    ),
-                  ),
-                ],
-                if (taskData.myTags.isNotEmpty) ...[
-                  const Divider(height: 20, indent: 16, endIndent: 16),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16, top: 4, bottom: 8),
-                    child: Text(
-                      '我的标签',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: taskData.myTags.map((tagName) {
-                        return GestureDetector(
-                          onTap: () {
-                            taskData.setHomeMode('tag', param: tagName);
-                            Navigator.pop(context);
-                          },
-                          onLongPress: () => _showEditTagDialog(tagName),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.lightBlue.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              tagName,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
           appBar: AppBar(
             elevation: 0,
             backgroundColor: const Color(0xFFE6F1FB),
@@ -1072,7 +670,10 @@ class _HomePageState extends State<HomePage> {
 
       if (d.isBefore(today)) {
         if (t.isEvent) {
-          pastEvents.add(t);
+          // 过滤掉过去的法定节假日
+          if (!t.isReadOnly && !t.id.startsWith('holiday_')) {
+            pastEvents.add(t);
+          }
         } else if (t.isDone) {
           pastDone.add(t);
         } else {
@@ -1119,7 +720,6 @@ class _HomePageState extends State<HomePage> {
         if (task.isReadOnly) return;
 
         String? newGroupName;
-
         for (int i = newIndex; i >= 0; i--) {
           if (i < flatItems.length && flatItems[i] is String) {
             newGroupName = flatItems[i] as String;
@@ -1164,26 +764,51 @@ class _HomePageState extends State<HomePage> {
         final item = flatItems[index];
 
         if (item is String) {
-          return Container(
+          final isFirst = index == 0;
+          return Column(
             key: ValueKey('header_$item'),
-            color: Colors.white,
-            child: ListTile(
-              title: Text(
-                item,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 🔴 仅在非首个分类栏上方添加明显的模块分割区（浅灰底色 + 实线）
+              if (!isFirst) ...[
+                Container(
+                  height: 8,
+                  color: const Color(0xFFF4F6F9), // 柔和的模块间隔色块
+                ),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Colors.grey.shade300,
+                ), // 模块顶部分割实线
+              ],
+              Container(
+                color: Colors.white,
+                child: ListTile(
+                  dense: true,
+                  visualDensity: const VisualDensity(vertical: -2),
+                  title: Text(
+                    item,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  trailing: Icon(
+                    _groupExpanded[item] == true
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    color: Colors.grey,
+                    size: 18,
+                  ),
+                  onTap: () => setState(
+                    () => _groupExpanded[item] = !_groupExpanded[item]!,
+                  ),
                 ),
               ),
-              trailing: Icon(
-                _groupExpanded[item] == true
-                    ? Icons.expand_less
-                    : Icons.expand_more,
-                color: Colors.grey,
-              ),
-              onTap: () =>
-                  setState(() => _groupExpanded[item] = !_groupExpanded[item]!),
-            ),
+              // 🔴 分类标题栏与下方任务内容之间的细分割线
+              Divider(height: 1, thickness: 0.8, color: Colors.grey.shade200),
+            ],
           );
         }
 
@@ -1228,13 +853,11 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildTaskTile(Task task, DateTime? defaultDate) {
     final listColor = taskData.getListColor(task.listName ?? '');
-    final showSidebarDate =
-        taskData.currentHomeMode == 'list' || taskData.currentHomeMode == 'tag';
+    final showSidebarDate = taskData.currentHomeMode != 'todo';
     final taskDateText = task.date == null
         ? null
-        : '${task.date!.month}/${task.date!.day}${task.time != null ? ' ${task.time!.format(context)}' : ''}';
+        : '${task.date!.month}月${task.date!.day}日${task.time != null ? ' ${task.time!.format(context)}' : ''}';
 
-    // 🔴 只读节假日事件：无锁标、无多余提示、无弹窗、无侧滑
     if (task.isReadOnly) {
       return Container(
         decoration: BoxDecoration(
@@ -1271,7 +894,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          onTap: null, // 🔴 点击完全无弹窗无反应
+          onTap: null,
         ),
       );
     }
@@ -1371,6 +994,27 @@ class _HomePageState extends State<HomePage> {
                       : (task.isDone ? Colors.grey : Colors.black87),
                 ),
               ),
+              // 逾期次数红色/橙色标签提示
+              if (!task.isEvent && task.overdueCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.red.shade200, width: 0.6),
+                  ),
+                  child: Text(
+                    '逾期 ${task.overdueCount} 次',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               if (task.repeatGroupId != null)
                 const Icon(Icons.repeat, size: 14, color: Colors.lightBlue),
               ...task.tags.map(

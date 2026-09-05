@@ -12,7 +12,15 @@ class VersionRecord {
 
 // 🔴 所有的版本更新记录存在这里
 const List<VersionRecord> versionHistory = [
-      VersionRecord(
+  VersionRecord(
+    version: 'v1.4.1',
+    date: '2026-09-6',
+    updates: [
+      '修复：侧边栏无法打开的问题',
+      '修复：节假日没有完全显示的问题',
+    ],
+  ),
+  VersionRecord(
     version: 'v1.4.0',
     date: '2026-09-5',
     updates: [

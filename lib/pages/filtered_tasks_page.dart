@@ -81,7 +81,9 @@ class FilteredTasksPage extends StatelessWidget {
               } else if (d.isAtSameMomentAs(dayAfter)) {
                 dayAfterT.add(t);
               } else {
-                laterT.add(t);
+                if (!t.isReadOnly && !t.id.startsWith('holiday_')) {
+                  laterT.add(t);
+                }
               }
             }
           }

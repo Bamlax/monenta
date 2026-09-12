@@ -12,6 +12,16 @@ class VersionRecord {
 
 // 🔴 所有的版本更新记录存在这里
 const List<VersionRecord> versionHistory = [
+    VersionRecord(
+    version: 'v1.5.0',
+    date: '2026-09-12',
+    updates: [
+      '新增：每日任务的分类',
+      '新增：已安排的待办移到收集箱增加延迟',
+      '新增：自定义专注时长',
+      '新增：时长统计',
+    ],
+  ),
   VersionRecord(
     version: 'v1.4.1',
     date: '2026-09-6',

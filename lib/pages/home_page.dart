@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/task_data.dart';
+import '../services/focus_timer_service.dart';
 import '../widgets/task_sheet.dart';
 
 class HomePage extends StatefulWidget {
@@ -11,7 +12,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // 精确控制当前页面 Scaffold 抽屉开启的 GlobalKey
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   DateTime _selectedDate = DateTime.now();
@@ -120,6 +120,19 @@ class _HomePageState extends State<HomePage> {
                         decoration: (!task.isEvent && task.isDone) ? TextDecoration.lineThrough : null,
                       ),
                     ),
+                    if (!task.isEvent && task.overdueCount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.red.shade200, width: 0.6),
+                        ),
+                        child: Text(
+                          '逾期 ${task.overdueCount} 次',
+                          style: TextStyle(fontSize: 9, color: Colors.red.shade700, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ...task.tags.map((tag) => Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                       decoration: BoxDecoration(color: Colors.lightBlue.shade50, borderRadius: BorderRadius.circular(4)),
@@ -168,17 +181,6 @@ class _HomePageState extends State<HomePage> {
                               if (!context.mounted) return;
                               if (picked != null) taskData.updateTaskDate(task.id, picked);
                             },
-                            onLongPress: () {
-                              confirmSkipOverdueDialog(context, () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: DateTime.now(),
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime(2050),
-                                );
-                                if (picked != null) taskData.updateTaskDate(task.id, picked, skipOverdueCount: true);
-                              });
-                            },
                           ),
                         ],
                       ),
@@ -199,10 +201,7 @@ class _HomePageState extends State<HomePage> {
                           style: TextStyle(fontSize: 10, color: listColor, fontWeight: FontWeight.bold),
                           isDense: true,
                           items: [
-                            const DropdownMenuItem<String>(
-                              value: null,
-                              child: Text('无清单', style: TextStyle(color: Colors.grey)),
-                            ),
+                            const DropdownMenuItem<String>(value: null, child: Text('无清单', style: TextStyle(color: Colors.grey))),
                             ...taskData.myLists.map((list) => DropdownMenuItem<String>(
                               value: list.name,
                               child: Row(
@@ -225,141 +224,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showEditListDialog(TaskList list) {
-    final ctrl = TextEditingController(text: list.name);
-    Color selectedColor = list.color;
-    final colors = [Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red, Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan];
-    bool showCustomColor = false;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setState) {
-            final rCtrl = TextEditingController(text: (selectedColor.r * 255).round().clamp(0, 255).toString());
-            final gCtrl = TextEditingController(text: (selectedColor.g * 255).round().clamp(0, 255).toString());
-            final bCtrl = TextEditingController(text: (selectedColor.b * 255).round().clamp(0, 255).toString());
-
-            Widget buildRgbInput(String label, TextEditingController textCtrl) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 4),
-                    SizedBox(
-                      width: 42,
-                      height: 32,
-                      child: TextField(
-                        controller: textCtrl,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          contentPadding: EdgeInsets.zero,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                        onChanged: (_) {
-                          final r = int.tryParse(rCtrl.text) ?? (selectedColor.r * 255).round();
-                          final g = int.tryParse(gCtrl.text) ?? (selectedColor.g * 255).round();
-                          final b = int.tryParse(bCtrl.text) ?? (selectedColor.b * 255).round();
-                          setState(() => selectedColor = Color.fromARGB(255, r.clamp(0, 255), g.clamp(0, 255), b.clamp(0, 255)));
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return AlertDialog(
-              title: const Text('编辑清单', style: TextStyle(color: Colors.lightBlue)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
-                  const SizedBox(height: 16),
-                  if (!showCustomColor)
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        ...colors.map((c) => GestureDetector(
-                          onTap: () => setState(() => selectedColor = c),
-                          child: CircleAvatar(
-                            backgroundColor: c,
-                            radius: 16,
-                            child: selectedColor == c ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
-                          ),
-                        )),
-                      ],
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    taskData.deleteList(list.name);
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('删除', style: TextStyle(color: Colors.red)),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('取消', style: TextStyle(color: Colors.grey)),
-                ),
-                TextButton(
-                  onPressed: () {
-                    if (ctrl.text.trim().isNotEmpty) {
-                      taskData.editList(list.name, ctrl.text.trim(), selectedColor);
-                      Navigator.pop(ctx);
-                    }
-                  },
-                  child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showEditTagDialog(String tag) {
-    final ctrl = TextEditingController(text: tag);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('编辑标签', style: TextStyle(color: Colors.lightBlue)),
-        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '标签名称')),
-        actions: [
-          TextButton(
-            onPressed: () {
-              taskData.deleteTag(tag);
-              Navigator.pop(ctx);
-            },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (ctrl.text.trim().isNotEmpty) {
-                taskData.editTag(tag, ctrl.text.trim());
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
-          ),
-        ],
       ),
     );
   }
@@ -445,7 +309,7 @@ class _HomePageState extends State<HomePage> {
         }
 
         return Scaffold(
-          key: _scaffoldKey, // 绑定 GlobalKey
+          key: _scaffoldKey,
           backgroundColor: Colors.white,
           drawer: Drawer(
             shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
@@ -491,13 +355,11 @@ class _HomePageState extends State<HomePage> {
                       leading: Icon(Icons.circle, size: 10, color: list.color),
                       title: Text(list.name, style: const TextStyle(fontSize: 14)),
                       dense: true,
-                      visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                       onTap: () {
                         taskData.setHomeMode('list', param: list.name);
                         Navigator.pop(context);
                       },
-                      onLongPress: () => _showEditListDialog(list),
                     ),
                   ),
                 ],
@@ -512,23 +374,20 @@ class _HomePageState extends State<HomePage> {
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 4,
-                      children: taskData.myTags.map((tagName) {
-                        return GestureDetector(
-                          onTap: () {
-                            taskData.setHomeMode('tag', param: tagName);
-                            Navigator.pop(context);
-                          },
-                          onLongPress: () => _showEditTagDialog(tagName),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.lightBlue.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(tagName, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                      children: taskData.myTags.map((tagName) => GestureDetector(
+                        onTap: () {
+                          taskData.setHomeMode('tag', param: tagName);
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.lightBlue.shade50,
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                        );
-                      }).toList(),
+                          child: Text(tagName, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        ),
+                      )).toList(),
                     ),
                   ),
                 ],
@@ -539,7 +398,6 @@ class _HomePageState extends State<HomePage> {
             elevation: 0,
             backgroundColor: const Color(0xFFE6F1FB),
             iconTheme: const IconThemeData(color: Colors.lightBlue),
-            // 使用 _scaffoldKey 打开抽屉
             leading: IconButton(
               icon: const Icon(Icons.menu, color: Colors.lightBlue),
               tooltip: '打开菜单',
@@ -674,21 +532,154 @@ class _HomePageState extends State<HomePage> {
               final dailyTasks = taskData.getTasksByDate(_selectedDate);
 
               if (dailyTasks.isEmpty) {
-                return const Center(
-                  child: Text('这天没有安排待办', style: TextStyle(color: Colors.grey)),
+                return const Center(child: Text('这天没有安排待办', style: TextStyle(color: Colors.grey)));
+              }
+
+              if (!taskData.enableTimeBuckets) {
+                return ReorderableListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: dailyTasks.length,
+                  onReorder: (oldIndex, newIndex) => taskData.reorderDailyTasks(_selectedDate, oldIndex, newIndex),
+                  itemBuilder: (context, index) {
+                    final task = dailyTasks[index];
+                    return Material(
+                      key: ValueKey('todo_mat_${task.id}'),
+                      color: Colors.transparent,
+                      child: _buildTaskTile(task, _selectedDate),
+                    );
+                  },
                 );
               }
 
+              final List<dynamic> bucketFlatItems = [];
+              final Map<String, List<Task>> bucketTaskMap = {};
+
+              for (final b in taskData.timeBuckets) {
+                bucketTaskMap[b] = [];
+              }
+              final List<Task> unbucketedTasks = [];
+
+              for (final t in dailyTasks) {
+                if (t.timeBucket != null && bucketTaskMap.containsKey(t.timeBucket)) {
+                  bucketTaskMap[t.timeBucket]!.add(t);
+                } else {
+                  unbucketedTasks.add(t);
+                }
+              }
+
+              for (final b in taskData.timeBuckets) {
+                bucketFlatItems.add(b);
+                bucketFlatItems.addAll(bucketTaskMap[b]!);
+              }
+
+              bucketFlatItems.add('未分栏');
+              bucketFlatItems.addAll(unbucketedTasks);
+
               return ReorderableListView.builder(
-                padding: EdgeInsets.zero,
-                itemCount: dailyTasks.length,
-                onReorder: (oldIndex, newIndex) => taskData.reorderDailyTasks(_selectedDate, oldIndex, newIndex),
+                padding: const EdgeInsets.only(bottom: 80),
+                buildDefaultDragHandles: false,
+                itemCount: bucketFlatItems.length,
+                onReorder: (oldIndex, newIndex) {
+                  if (oldIndex < newIndex) newIndex--;
+                  final item = bucketFlatItems[oldIndex];
+                  if (item is String) return;
+
+                  final task = item as Task;
+                  if (task.isReadOnly) return;
+
+                  String? targetBucket;
+
+                  // 移动到第一个分栏上方时，自动放入第一栏
+                  if (newIndex <= 0) {
+                    final firstHeader = bucketFlatItems.firstWhere((e) => e is String, orElse: () => null);
+                    if (firstHeader != null && firstHeader is String && firstHeader != '未分栏') {
+                      targetBucket = firstHeader;
+                    }
+                  } else {
+                    for (int i = newIndex; i >= 0; i--) {
+                      if (i < bucketFlatItems.length && bucketFlatItems[i] is String) {
+                        final title = bucketFlatItems[i] as String;
+                        targetBucket = title == '未分栏' ? null : title;
+                        break;
+                      }
+                    }
+                  }
+
+                  taskData.updateTaskBucket(task.id, targetBucket);
+                },
                 itemBuilder: (context, index) {
-                  final task = dailyTasks[index];
-                  return Material(
-                    key: ValueKey('todo_mat_${task.id}'),
-                    color: Colors.transparent,
-                    child: _buildTaskTile(task, _selectedDate),
+                  final item = bucketFlatItems[index];
+
+                  if (item is String) {
+                    final isFirst = index == 0;
+                    final isUnbucketed = item == '未分栏';
+
+                    return Container(
+                      key: ValueKey('bucket_header_$item'),
+                      color: Colors.white,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isFirst)
+                            Container(
+                              height: 0.5,
+                              margin: const EdgeInsets.symmetric(horizontal: 16),
+                              color: Colors.black.withOpacity(0.06),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 12, 6),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: isUnbucketed ? const Color(0xFFF3F4F6) : const Color(0xFFECEFF1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    item,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF374151),
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (!isUnbucketed)
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () => showTaskBottomSheet(
+                                      context,
+                                      defaultDate: _selectedDate,
+                                      defaultTimeBucket: item,
+                                    ),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: Icon(
+                                        Icons.add,
+                                        size: 18,
+                                        color: Color(0xFF9CA3AF),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final task = item as Task;
+                  return ReorderableDelayedDragStartListener(
+                    key: ValueKey('bucket_task_${task.id}'),
+                    index: index,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: _buildTaskTile(task, _selectedDate),
+                    ),
                   );
                 },
               );
@@ -734,7 +725,6 @@ class _HomePageState extends State<HomePage> {
 
       if (d.isBefore(today)) {
         if (t.isEvent) {
-          // 过滤掉过去的法定节假日
           if (!t.isReadOnly && !t.id.startsWith('holiday_')) {
             pastEvents.add(t);
           }
@@ -833,12 +823,8 @@ class _HomePageState extends State<HomePage> {
             key: ValueKey('header_$item'),
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 模块之间明显的间隔条与分割线
               if (!isFirst) ...[
-                Container(
-                  height: 8,
-                  color: const Color(0xFFF4F6F9),
-                ),
+                Container(height: 8, color: const Color(0xFFF4F6F9)),
                 Divider(height: 1, thickness: 1, color: Colors.grey.shade300),
               ],
               Container(
@@ -848,11 +834,7 @@ class _HomePageState extends State<HomePage> {
                   visualDensity: const VisualDensity(vertical: -2),
                   title: Text(
                     item,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
                   ),
                   trailing: Icon(
                     _groupExpanded[item] == true ? Icons.expand_less : Icons.expand_more,
@@ -887,17 +869,20 @@ class _HomePageState extends State<HomePage> {
         title: Text(actionName, style: const TextStyle(color: Colors.lightBlue)),
         content: const Text('这是一个重复事件，您希望将操作应用到哪些事件？'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('仅当前事件', style: TextStyle(color: Colors.black87)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('所有后续事件', style: TextStyle(color: Colors.lightBlue)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('仅当前事件', style: TextStyle(color: Colors.black87))),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('所有后续事件', style: TextStyle(color: Colors.lightBlue))),
         ],
       ),
     );
+  }
+
+  String _formatFocusDuration(int totalSeconds) {
+    if (totalSeconds < 60) return '${totalSeconds}秒';
+    final minutes = totalSeconds ~/ 60;
+    if (minutes < 60) return '$minutes分钟';
+    final hours = minutes ~/ 60;
+    final remainM = minutes % 60;
+    return remainM > 0 ? '${hours}小时${remainM}分' : '$hours小时';
   }
 
   Widget _buildTaskTile(Task task, DateTime? defaultDate) {
@@ -1025,6 +1010,26 @@ class _HomePageState extends State<HomePage> {
                   color: task.isEvent ? Colors.black87 : (task.isDone ? Colors.grey : Colors.black87),
                 ),
               ),
+              if (task.focusDurationSeconds > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.green.shade200, width: 0.6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.timer_outlined, size: 10, color: Colors.green.shade700),
+                      const SizedBox(width: 2),
+                      Text(
+                        _formatFocusDuration(task.focusDurationSeconds),
+                        style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
               if (!task.isEvent && task.overdueCount > 0)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -1091,6 +1096,11 @@ class _HomePageState extends State<HomePage> {
                   icon: const Icon(Icons.alarm, color: Colors.lightBlue),
                   onPressed: () {
                     taskData.setFocusTask(task);
+                    // 🔴 显式将任务注入到计时单例中，保证专注页同步感知
+                    FocusTimerService.instance.setTask(
+                      taskId: task.id,
+                      title: task.title,
+                    );
                     appTabIndex.value = 2;
                   },
                 ),

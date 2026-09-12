@@ -56,6 +56,38 @@ class TaskList {
       );
 }
 
+class FocusRecord {
+  final String id;
+  final DateTime date;
+  final int seconds;
+  final String? listName;
+  final String? taskId;
+
+  FocusRecord({
+    required this.id,
+    required this.date,
+    required this.seconds,
+    this.listName,
+    this.taskId,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'date': date.toIso8601String(),
+        'seconds': seconds,
+        'listName': listName,
+        'taskId': taskId,
+      };
+
+  static FocusRecord fromJson(Map<String, dynamic> json) => FocusRecord(
+        id: json['id'],
+        date: DateTime.parse(json['date']),
+        seconds: json['seconds'] ?? 0,
+        listName: json['listName'],
+        taskId: json['taskId'],
+      );
+}
+
 class Task {
   String id;
   String title;
@@ -71,9 +103,11 @@ class Task {
   String? repeatGroupId;
   String? repeatRuleText;
   bool isReadOnly;
-
-  // 逾期累计次数
   int overdueCount;
+  String? timeBucket;
+
+  // 🔴 任务累计专注用时（秒）
+  int focusDurationSeconds;
 
   Task({
     required this.id,
@@ -91,6 +125,8 @@ class Task {
     this.repeatRuleText,
     this.isReadOnly = false,
     this.overdueCount = 0,
+    this.timeBucket,
+    this.focusDurationSeconds = 0,
   });
 
   Task copyWith({
@@ -101,6 +137,9 @@ class Task {
     bool? isEvent,
     bool? isReadOnly,
     int? overdueCount,
+    String? timeBucket,
+    bool clearTimeBucket = false,
+    int? focusDurationSeconds,
   }) {
     return Task(
       id: id ?? this.id,
@@ -118,6 +157,8 @@ class Task {
       repeatRuleText: repeatRuleText ?? this.repeatRuleText,
       isReadOnly: isReadOnly ?? this.isReadOnly,
       overdueCount: overdueCount ?? this.overdueCount,
+      timeBucket: clearTimeBucket ? null : (timeBucket ?? this.timeBucket),
+      focusDurationSeconds: focusDurationSeconds ?? this.focusDurationSeconds,
     );
   }
 
@@ -138,6 +179,8 @@ class Task {
         'repeatRuleText': repeatRuleText,
         'isReadOnly': isReadOnly,
         'overdueCount': overdueCount,
+        'timeBucket': timeBucket,
+        'focusDurationSeconds': focusDurationSeconds,
       };
 
   static Task fromJson(Map<String, dynamic> json) => Task(
@@ -161,6 +204,8 @@ class Task {
         repeatRuleText: json['repeatRuleText'],
         isReadOnly: json['isReadOnly'] ?? false,
         overdueCount: json['overdueCount'] ?? 0,
+        timeBucket: json['timeBucket'],
+        focusDurationSeconds: json['focusDurationSeconds'] ?? 0,
       );
 }
 
@@ -170,16 +215,26 @@ class TaskData extends ChangeNotifier {
   final List<Task> _tasks = [];
   final List<TaskList> myLists = [];
   final List<String> myTags = [];
+  final List<FocusRecord> focusRecords = [];
 
   Task? currentFocusTask;
   String currentHomeMode = 'todo';
   String? currentHomeParam;
 
   bool enableHolidays = false;
+  bool enableTimeBuckets = false;
+  List<String> timeBuckets = ['上午', '中午', '下午', '晚上'];
 
   Future<void> loadData() async {
     final prefs = await SharedPreferences.getInstance();
     enableHolidays = prefs.getBool('monenta_enable_holidays') ?? false;
+    enableTimeBuckets = prefs.getBool('monenta_enable_time_buckets') ?? false;
+
+    final bucketsStr = prefs.getString('monenta_time_buckets');
+    if (bucketsStr != null) {
+      final List<dynamic> decoded = json.decode(bucketsStr);
+      timeBuckets = decoded.map((e) => e.toString()).toList();
+    }
 
     final listsStr = prefs.getString('monenta_lists');
     if (listsStr != null) {
@@ -202,6 +257,13 @@ class TaskData extends ChangeNotifier {
       _tasks.addAll(List<Task>.from(t.map((m) => Task.fromJson(m))));
     }
 
+    final recordsStr = prefs.getString('monenta_focus_records');
+    if (recordsStr != null) {
+      final Iterable r = json.decode(recordsStr);
+      focusRecords.clear();
+      focusRecords.addAll(List<FocusRecord>.from(r.map((m) => FocusRecord.fromJson(m))));
+    }
+
     if (enableHolidays) {
       _syncHolidays(notify: false);
     }
@@ -210,6 +272,8 @@ class TaskData extends ChangeNotifier {
   Future<void> saveData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('monenta_enable_holidays', enableHolidays);
+    await prefs.setBool('monenta_enable_time_buckets', enableTimeBuckets);
+    await prefs.setString('monenta_time_buckets', json.encode(timeBuckets));
 
     await prefs.setString(
       'monenta_lists',
@@ -225,12 +289,93 @@ class TaskData extends ChangeNotifier {
       'monenta_tasks',
       json.encode(_tasks.map((e) => e.toJson()).toList()),
     );
+
+    await prefs.setString(
+      'monenta_focus_records',
+      json.encode(focusRecords.map((e) => e.toJson()).toList()),
+    );
   }
 
   @override
   void notifyListeners() {
     super.notifyListeners();
     saveData();
+  }
+
+  // 🔴 记录专注时长并累加到对应任务中
+  void addFocusRecord(int seconds, {String? taskId}) {
+    if (seconds <= 0) return;
+    String? listName;
+    if (taskId != null) {
+      final idx = _tasks.indexWhere((t) => t.id == taskId);
+      if (idx != -1) {
+        listName = _tasks[idx].listName;
+        _tasks[idx].focusDurationSeconds += seconds; // 累加至任务身上
+      }
+    }
+
+    focusRecords.add(FocusRecord(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      date: DateTime.now(),
+      seconds: seconds,
+      listName: listName,
+      taskId: taskId,
+    ));
+    notifyListeners();
+  }
+
+  Future<void> toggleTimeBuckets(bool enable) async {
+    if (enableTimeBuckets == enable) return;
+    enableTimeBuckets = enable;
+    notifyListeners();
+  }
+
+  void addTimeBucket(String name) {
+    if (name.trim().isEmpty || timeBuckets.contains(name.trim())) return;
+    timeBuckets.add(name.trim());
+    notifyListeners();
+  }
+
+  void editTimeBucket(String oldName, String newName) {
+    if (newName.trim().isEmpty) return;
+    final index = timeBuckets.indexOf(oldName);
+    if (index != -1) {
+      timeBuckets[index] = newName.trim();
+      for (final t in _tasks) {
+        if (t.timeBucket == oldName) {
+          t.timeBucket = newName.trim();
+        }
+      }
+      notifyListeners();
+    }
+  }
+
+  void deleteTimeBucket(String name) {
+    timeBuckets.remove(name);
+    for (final t in _tasks) {
+      if (t.timeBucket == name) {
+        t.timeBucket = null;
+      }
+    }
+    notifyListeners();
+  }
+
+  void reorderTimeBuckets(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = timeBuckets.removeAt(oldIndex);
+    timeBuckets.insert(newIndex, item);
+    notifyListeners();
+  }
+
+  void updateTaskBucket(String taskId, String? bucket) {
+    final taskIndex = _tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) return;
+    final task = _tasks[taskIndex];
+    if (task.isReadOnly) return;
+    task.timeBucket = bucket;
+    notifyListeners();
   }
 
   Future<void> toggleHolidays(bool enable) async {
@@ -485,17 +630,19 @@ class TaskData extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 逾期判定辅助方法
   bool _checkIsOverdue(Task task, DateTime? newDate) {
-    if (task.isEvent || task.isDone || task.isReadOnly || task.date == null || newDate == null) {
+    if (task.isEvent || task.isDone || task.isReadOnly || task.date == null) {
       return false;
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final oldDay = DateTime(task.date!.year, task.date!.month, task.date!.day);
-    final targetDay = DateTime(newDate.year, newDate.month, newDate.day);
 
-    // 原日期早于今天，且新日期与原日期不同
+    if (newDate == null) {
+      return true;
+    }
+
+    final targetDay = DateTime(newDate.year, newDate.month, newDate.day);
     return oldDay.isBefore(today) && !targetDay.isAtSameMomentAs(oldDay);
   }
 
@@ -525,6 +672,8 @@ class TaskData extends ChangeNotifier {
     bool updateFuture = false,
     bool? newIsEvent,
     bool skipOverdueCount = false,
+    String? newTimeBucket,
+    bool clearTimeBucket = false,
   }) {
     final taskIndex = _tasks.indexWhere((t) => t.id == id);
     if (taskIndex == -1) return;
@@ -550,6 +699,11 @@ class TaskData extends ChangeNotifier {
         r.addToCalendar = newAddToCalendar;
         r.listName = newList;
         r.tags = List.from(newTags);
+        if (clearTimeBucket) {
+          r.timeBucket = null;
+        } else if (newTimeBucket != null) {
+          r.timeBucket = newTimeBucket;
+        }
 
         if (newIsEvent != null) {
           r.isEvent = newIsEvent;
@@ -572,6 +726,11 @@ class TaskData extends ChangeNotifier {
       task.addToCalendar = newAddToCalendar;
       task.listName = newList;
       task.tags = List.from(newTags);
+      if (clearTimeBucket) {
+        task.timeBucket = null;
+      } else if (newTimeBucket != null) {
+        task.timeBucket = newTimeBucket;
+      }
 
       if (newIsEvent != null) {
         task.isEvent = newIsEvent;
@@ -717,7 +876,6 @@ class TaskData extends ChangeNotifier {
   void moveTaskGlobally(Task task, DateTime? newDate, Task? anchorTask, bool insertAfter) {
     if (task.isReadOnly) return;
 
-    // 拖拽至新日期时触发逾期判定
     if (_checkIsOverdue(task, newDate)) {
       task.overdueCount += 1;
     }

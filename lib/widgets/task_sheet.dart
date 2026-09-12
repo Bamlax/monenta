@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:device_calendar/device_calendar.dart' as dc;
@@ -18,12 +16,8 @@ void _ensureCalendarTimeZones() {
 }
 
 String _calendarErrors(dc.Result<dynamic>? result) {
-  if (result == null) {
-    return '未知错误：插件没有返回结果';
-  }
-  if (result.errors.isEmpty) {
-    return '未知错误';
-  }
+  if (result == null) return '未知错误：插件没有返回结果';
+  if (result.errors.isEmpty) return '未知错误';
   return result.errors.map((e) => e.errorMessage).join('；');
 }
 
@@ -144,6 +138,7 @@ void showTaskBottomSheet(
   DateTime? defaultDate,
   String? defaultList,
   List<String>? defaultTags,
+  String? defaultTimeBucket,
 }) {
   final TextEditingController titleController =
       TextEditingController(text: existingTask?.title ?? '');
@@ -158,7 +153,9 @@ void showTaskBottomSheet(
   List<String> selectedTags = existingTask?.tags.toList() ?? defaultTags ?? [];
   RepeatConfig? currentRepeat;
 
-  // 长按免计逾期标识
+  // 选中的分栏
+  String? selectedBucket = existingTask?.timeBucket ?? defaultTimeBucket;
+
   bool skipOverdue = false;
 
   bool isToday(DateTime? d) {
@@ -184,10 +181,7 @@ void showTaskBottomSheet(
         title: const Text('提示', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
         content: const Text('长按更改日期不会统计逾期'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('取消', style: TextStyle(color: Colors.grey)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('取消', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
               skipOverdue = true;
@@ -195,6 +189,26 @@ void showTaskBottomSheet(
               Navigator.pop(c);
             },
             child: const Text('确定', style: TextStyle(color: Colors.lightBlue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> confirmMoveToInboxWithDelayDialog(BuildContext ctx, VoidCallback onConfirm) async {
+    await showDialog(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        title: const Text('移至待办箱', style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const Text('将已安排日期的待办移到待办箱会记录 1 次延迟。\n（长按“无日期”可免记延迟）'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              onConfirm();
+              Navigator.pop(c);
+            },
+            child: const Text('继续移动', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -215,207 +229,40 @@ void showTaskBottomSheet(
               Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red,
               Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan,
             ];
-            bool showCustomColor = false;
-
-            final rCtrl = TextEditingController(text: selectedColor.red.toString());
-            final gCtrl = TextEditingController(text: selectedColor.green.toString());
-            final bCtrl = TextEditingController(text: selectedColor.blue.toString());
-
-            Widget _buildRgbInput(String label, TextEditingController textCtrl, StateSetter setState) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 4),
-                    SizedBox(
-                      width: 42,
-                      height: 32,
-                      child: TextField(
-                        controller: textCtrl,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          contentPadding: EdgeInsets.zero,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                        onChanged: (val) {
-                          final r = int.tryParse(rCtrl.text) ?? selectedColor.red;
-                          final g = int.tryParse(gCtrl.text) ?? selectedColor.green;
-                          final b = int.tryParse(bCtrl.text) ?? selectedColor.blue;
-                          setState(() {
-                            selectedColor = Color.fromARGB(255, r.clamp(0, 255), g.clamp(0, 255), b.clamp(0, 255));
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            void _updateFromWheel(double hue, double saturation, StateSetter setState) {
-              setState(() {
-                selectedColor = HSVColor.fromAHSV(1.0, hue, saturation, 1.0).toColor();
-                rCtrl.text = selectedColor.red.toString();
-                gCtrl.text = selectedColor.green.toString();
-                bCtrl.text = selectedColor.blue.toString();
-              });
-            }
 
             showDialog(
               context: context,
-              builder: (ctx) {
-                return StatefulBuilder(
-                  builder: (ctx, setState) {
-                    return AlertDialog(
-                      title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue)),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextField(
-                            controller: ctrl,
-                            autofocus: true,
-                            decoration: const InputDecoration(hintText: '清单名称'),
-                          ),
-                          const SizedBox(height: 16),
-                          if (!showCustomColor)
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                ...colors.map((c) => GestureDetector(
-                                  onTap: () => setState(() {
-                                    selectedColor = c;
-                                    rCtrl.text = c.red.toString();
-                                    gCtrl.text = c.green.toString();
-                                    bCtrl.text = c.blue.toString();
-                                  }),
-                                  child: CircleAvatar(
-                                    backgroundColor: c,
-                                    radius: 16,
-                                    child: selectedColor == c
-                                        ? const Icon(Icons.check, color: Colors.white, size: 16)
-                                        : null,
-                                  ),
-                                )),
-                                GestureDetector(
-                                  onTap: () => setState(() => showCustomColor = true),
-                                  child: const CircleAvatar(
-                                    backgroundColor: Colors.grey,
-                                    radius: 16,
-                                    child: Icon(Icons.palette, color: Colors.white, size: 16),
-                                  ),
-                                ),
-                              ],
-                            )
-                          else
-                            Column(
-                              children: [
-                                Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    GestureDetector(
-                                      onPanUpdate: (details) {
-                                        const radius = 75.0;
-                                        final dx = details.localPosition.dx - radius;
-                                        final dy = details.localPosition.dy - radius;
-                                        double angle = atan2(dy, dx);
-                                        if (angle < 0) angle += 2 * pi;
-                                        final hue = angle * 180 / pi;
-                                        final distance = sqrt(dx * dx + dy * dy);
-                                        final saturation = (distance / radius).clamp(0.0, 1.0);
-                                        _updateFromWheel(hue, saturation, setState);
-                                      },
-                                      onTapDown: (details) {
-                                        const radius = 75.0;
-                                        final dx = details.localPosition.dx - radius;
-                                        final dy = details.localPosition.dy - radius;
-                                        double angle = atan2(dy, dx);
-                                        if (angle < 0) angle += 2 * pi;
-                                        final hue = angle * 180 / pi;
-                                        final distance = sqrt(dx * dx + dy * dy);
-                                        final saturation = (distance / radius).clamp(0.0, 1.0);
-                                        _updateFromWheel(hue, saturation, setState);
-                                      },
-                                      child: Container(
-                                        width: 150,
-                                        height: 150,
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: SweepGradient(
-                                            colors: [
-                                              Color.fromARGB(255, 255, 0, 0),
-                                              Color.fromARGB(255, 255, 255, 0),
-                                              Color.fromARGB(255, 0, 255, 0),
-                                              Color.fromARGB(255, 0, 255, 255),
-                                              Color.fromARGB(255, 0, 0, 255),
-                                              Color.fromARGB(255, 255, 0, 255),
-                                              Color.fromARGB(255, 255, 0, 0),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Builder(
-                                      builder: (context) {
-                                        final hsv = HSVColor.fromColor(selectedColor);
-                                        final angle = hsv.hue * pi / 180;
-                                        final distance = hsv.saturation * 75;
-                                        return Transform.translate(
-                                          offset: Offset(distance * cos(angle), distance * sin(angle)),
-                                          child: Container(
-                                            width: 20,
-                                            height: 20,
-                                            decoration: BoxDecoration(
-                                              color: selectedColor,
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 2),
-                                              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _buildRgbInput('R', rCtrl, setState),
-                                    _buildRgbInput('G', gCtrl, setState),
-                                    _buildRgbInput('B', bCtrl, setState),
-                                  ],
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('取消', style: TextStyle(color: Colors.grey)),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            if (ctrl.text.trim().isNotEmpty) {
-                              taskData.addList(ctrl.text.trim(), selectedColor);
-                              setModalState(() {
-                                selectedList = ctrl.text.trim();
-                              });
-                              Navigator.pop(ctx);
-                            }
-                          },
-                          child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
+              builder: (ctx) => AlertDialog(
+                title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue)),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: colors.map((c) => GestureDetector(
+                        onTap: () => selectedColor = c,
+                        child: CircleAvatar(backgroundColor: c, radius: 16),
+                      )).toList(),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+                  TextButton(
+                    onPressed: () {
+                      if (ctrl.text.trim().isNotEmpty) {
+                        taskData.addList(ctrl.text.trim(), selectedColor);
+                        setModalState(() => selectedList = ctrl.text.trim());
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
+                  ),
+                ],
+              ),
             );
           }
 
@@ -423,228 +270,21 @@ void showTaskBottomSheet(
             final ctrl = TextEditingController();
             showDialog(
               context: context,
-              builder: (ctx) {
-                return AlertDialog(
-                  title: const Text('新建标签', style: TextStyle(color: Colors.lightBlue)),
-                  content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '标签名称')),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                    TextButton(
-                      onPressed: () {
-                        if (ctrl.text.trim().isNotEmpty) {
-                          taskData.addTag(ctrl.text.trim());
-                          setModalState(() {
-                            selectedTags.add(ctrl.text.trim());
-                          });
-                          Navigator.pop(ctx);
-                        }
-                      },
-                      child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
-                    ),
-                  ],
-                );
-              },
-            );
-          }
-
-          void _showTimeAndCalendarDialog() async {
-            TimeOfDay? pickedTime = selectedTime ?? TimeOfDay.now();
-            bool tempAdd = addToCalendar;
-
-            await showDialog(
-              context: context,
-              builder: (ctx) {
-                return StatefulBuilder(
-                  builder: (ctx, setDialogState) {
-                    return AlertDialog(
-                      title: const Text('设置时间与日程', style: TextStyle(color: Colors.lightBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(pickedTime!.format(context), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                            trailing: const Icon(Icons.edit_calendar, color: Colors.lightBlue),
-                            onTap: () async {
-                              final t = await showTimePicker(context: ctx, initialTime: pickedTime!);
-                              if (t != null) {
-                                setDialogState(() => pickedTime = t);
-                              }
-                            },
-                          ),
-                          const Divider(),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('添加到系统日程', style: TextStyle(fontSize: 15)),
-                            subtitle: const Text('后台静默同步到系统日历', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            value: tempAdd,
-                            activeColor: Colors.lightBlue,
-                            onChanged: (val) async {
-                              if (val) {
-                                if (taskDate == null) {
-                                  _showCalendarSnackBar(context, '请先选择日期，再添加到系统日程');
-                                  setDialogState(() => tempAdd = false);
-                                  return;
-                                }
-                                final plugin = dc.DeviceCalendarPlugin();
-                                var status = await plugin.hasPermissions();
-                                if (!status.isSuccess || !(status.data ?? false)) {
-                                  status = await plugin.requestPermissions();
-                                }
-                                if (status.isSuccess && (status.data ?? false)) {
-                                  setDialogState(() => tempAdd = true);
-                                } else {
-                                  _showCalendarSnackBar(context, '需要允许日历权限才能添加日程');
-                                  setDialogState(() => tempAdd = false);
-                                }
-                              } else {
-                                setDialogState(() => tempAdd = false);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            setModalState(() {
-                              selectedTime = null;
-                              addToCalendar = false;
-                            });
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('清除时间', style: TextStyle(color: Colors.red)),
-                        ),
-                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                        TextButton(
-                          onPressed: () {
-                            setModalState(() {
-                              selectedTime = pickedTime;
-                              addToCalendar = tempAdd;
-                            });
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('确定', style: TextStyle(color: Colors.lightBlue)),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            );
-          }
-
-          void _showRepeatDialog() {
-            int tempInterval = currentRepeat?.interval ?? 1;
-            int tempUnitIdx = ['day', 'week', 'month', 'year'].indexOf(currentRepeat?.unit ?? 'day');
-            DateTime? tempEndDate = currentRepeat?.endDate;
-            final units = ['日', '周', '月', '年'];
-            final unitKeys = ['day', 'week', 'month', 'year'];
-
-            showDialog(
-              context: context,
-              builder: (ctx) {
-                return StatefulBuilder(
-                  builder: (ctx, setDialogState) {
-                    return AlertDialog(
-                      title: const Text('设置重复', style: TextStyle(color: Colors.lightBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            height: 150,
-                            child: Row(
-                              children: [
-                                const Text('每', style: TextStyle(fontSize: 18)),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: CupertinoPicker(
-                                    itemExtent: 40,
-                                    scrollController: FixedExtentScrollController(initialItem: tempInterval - 1),
-                                    onSelectedItemChanged: (i) => tempInterval = i + 1,
-                                    children: List.generate(99, (i) => Center(child: Text('${i + 1}', style: const TextStyle(fontSize: 20)))),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: CupertinoPicker(
-                                    itemExtent: 40,
-                                    scrollController: FixedExtentScrollController(initialItem: tempUnitIdx),
-                                    onSelectedItemChanged: (i) => tempUnitIdx = i,
-                                    children: units.map((u) => Center(child: Text(u, style: const TextStyle(fontSize: 20)))).toList(),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Divider(),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('结束时间', style: TextStyle(fontSize: 15)),
-                            trailing: TextButton(
-                              onPressed: () async {
-                                final picked = await showDatePicker(
-                                  context: ctx,
-                                  initialDate: tempEndDate ?? DateTime.now(),
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime(2050),
-                                  locale: const Locale('zh', 'CN'),
-                                );
-                                if (picked != null) {
-                                  setDialogState(() => tempEndDate = picked);
-                                }
-                              },
-                              child: Text(
-                                tempEndDate != null ? '${tempEndDate!.year}-${tempEndDate!.month}-${tempEndDate!.day}' : '永远重复',
-                                style: const TextStyle(color: Colors.lightBlue, fontSize: 16),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            setModalState(() => currentRepeat = null);
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('清除重复', style: TextStyle(color: Colors.red)),
-                        ),
-                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                        TextButton(
-                          onPressed: () {
-                            setModalState(() {
-                              currentRepeat = RepeatConfig(
-                                groupId: DateTime.now().millisecondsSinceEpoch.toString(),
-                                interval: tempInterval,
-                                unit: unitKeys[tempUnitIdx],
-                                endDate: tempEndDate,
-                              );
-                            });
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('确定', style: TextStyle(color: Colors.lightBlue)),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            );
-          }
-
-          Future<int?> _askUpdateFuture() async {
-            if (existingTask == null || existingTask!.repeatGroupId == null) {
-              return 0;
-            }
-
-            return showDialog<int>(
-              context: context,
-              builder: (c) => AlertDialog(
-                title: const Text('保存修改', style: TextStyle(color: Colors.lightBlue)),
-                content: const Text('这是一个重复事件，您希望将修改应用到哪些事件？'),
+              builder: (ctx) => AlertDialog(
+                title: const Text('新建标签', style: TextStyle(color: Colors.lightBlue)),
+                content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '标签名称')),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(c, 0), child: const Text('仅修改当前事件', style: TextStyle(color: Colors.black87))),
-                  TextButton(onPressed: () => Navigator.pop(c, 1), child: const Text('修改所有后续事件', style: TextStyle(color: Colors.lightBlue))),
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+                  TextButton(
+                    onPressed: () {
+                      if (ctrl.text.trim().isNotEmpty) {
+                        taskData.addTag(ctrl.text.trim());
+                        setModalState(() => selectedTags.add(ctrl.text.trim()));
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
+                  ),
                 ],
               ),
             );
@@ -673,9 +313,7 @@ void showTaskBottomSheet(
                     backgroundColor: Colors.grey.shade100,
                     onValueChanged: (value) {
                       if (value == null) return;
-                      setModalState(() {
-                        isEvent = value;
-                      });
+                      setModalState(() => isEvent = value);
                     },
                   ),
                 ),
@@ -696,9 +334,7 @@ void showTaskBottomSheet(
                             backgroundColor: Colors.grey.shade100,
                             side: BorderSide.none,
                             onSelected: (val) {
-                              setModalState(() {
-                                selectedList = val ? list.name : null;
-                              });
+                              setModalState(() => selectedList = val ? list.name : null);
                             },
                           ),
                         ),
@@ -727,7 +363,7 @@ void showTaskBottomSheet(
                 ),
                 const SizedBox(height: 10),
 
-                // 日期选择芯片支持长按免计逾期
+                // 日期选择芯片
                 Wrap(
                   spacing: 8,
                   children: [
@@ -744,11 +380,7 @@ void showTaskBottomSheet(
                         selectedColor: Colors.lightBlue.shade100,
                         backgroundColor: Colors.grey.shade100,
                         side: BorderSide.none,
-                        onSelected: (val) {
-                          setModalState(() {
-                            taskDate = DateTime.now();
-                          });
-                        },
+                        onSelected: (val) => setModalState(() => taskDate = DateTime.now()),
                       ),
                     ),
                     InkWell(
@@ -764,25 +396,49 @@ void showTaskBottomSheet(
                         selectedColor: Colors.lightBlue.shade100,
                         backgroundColor: Colors.grey.shade100,
                         side: BorderSide.none,
-                        onSelected: (val) {
-                          setModalState(() {
-                            taskDate = DateTime.now().add(const Duration(days: 1));
-                          });
-                        },
+                        onSelected: (val) => setModalState(() => taskDate = DateTime.now().add(const Duration(days: 1))),
                       ),
                     ),
-                    ChoiceChip(
-                      label: const Text('无日期'),
-                      selected: taskDate == null,
-                      selectedColor: Colors.lightBlue.shade100,
-                      backgroundColor: Colors.grey.shade100,
-                      side: BorderSide.none,
-                      onSelected: (val) {
-                        setModalState(() {
-                          taskDate = null;
-                          addToCalendar = false;
-                        });
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onLongPress: () {
+                        if (existingTask?.date != null) {
+                          confirmSkipOverdueDialog(context, () {
+                            setModalState(() {
+                              taskDate = null;
+                              addToCalendar = false;
+                            });
+                          });
+                        } else {
+                          setModalState(() {
+                            taskDate = null;
+                            addToCalendar = false;
+                          });
+                        }
                       },
+                      child: ChoiceChip(
+                        label: const Text('无日期'),
+                        selected: taskDate == null,
+                        selectedColor: Colors.lightBlue.shade100,
+                        backgroundColor: Colors.grey.shade100,
+                        side: BorderSide.none,
+                        onSelected: (val) {
+                          if (existingTask?.date != null) {
+                            confirmMoveToInboxWithDelayDialog(context, () {
+                              setModalState(() {
+                                skipOverdue = false;
+                                taskDate = null;
+                                addToCalendar = false;
+                              });
+                            });
+                          } else {
+                            setModalState(() {
+                              taskDate = null;
+                              addToCalendar = false;
+                            });
+                          }
+                        },
+                      ),
                     ),
                     InkWell(
                       borderRadius: BorderRadius.circular(16),
@@ -795,9 +451,7 @@ void showTaskBottomSheet(
                             lastDate: DateTime(2030),
                             locale: const Locale('zh', 'CN'),
                           );
-                          if (picked != null) {
-                            setModalState(() => taskDate = picked);
-                          }
+                          if (picked != null) setModalState(() => taskDate = picked);
                         });
                       },
                       child: ActionChip(
@@ -813,15 +467,56 @@ void showTaskBottomSheet(
                             lastDate: DateTime(2030),
                             locale: const Locale('zh', 'CN'),
                           );
-                          if (picked != null) {
-                            setModalState(() => taskDate = picked);
-                          }
+                          if (picked != null) setModalState(() => taskDate = picked);
                         },
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
+
+                // 🔴 每日分栏选择区（仅在设置中开启分栏时展示）
+                if (taskData.enableTimeBuckets && taskData.timeBuckets.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.view_agenda_outlined, size: 16, color: Colors.lightBlue),
+                      const SizedBox(width: 8),
+                      const Text('时段分栏：', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              ChoiceChip(
+                                label: const Text('不分栏', style: TextStyle(fontSize: 11)),
+                                selected: selectedBucket == null,
+                                selectedColor: Colors.lightBlue.shade100,
+                                backgroundColor: Colors.grey.shade100,
+                                side: BorderSide.none,
+                                onSelected: (val) => setModalState(() => selectedBucket = null),
+                              ),
+                              const SizedBox(width: 6),
+                              ...taskData.timeBuckets.map((bucket) => Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ChoiceChip(
+                                  label: Text(bucket, style: const TextStyle(fontSize: 11)),
+                                  selected: selectedBucket == bucket,
+                                  selectedColor: Colors.lightBlue.shade100,
+                                  backgroundColor: Colors.grey.shade100,
+                                  side: BorderSide.none,
+                                  onSelected: (val) => setModalState(() => selectedBucket = val ? bucket : null),
+                                ),
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // 标签选择行
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -857,46 +552,7 @@ void showTaskBottomSheet(
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    ActionChip(
-                      avatar: const Icon(Icons.access_time, size: 16, color: Colors.lightBlue),
-                      label: Text(
-                        selectedTime != null ? selectedTime!.format(context) : '设具体时间',
-                        style: const TextStyle(color: Colors.lightBlue, fontSize: 12),
-                      ),
-                      backgroundColor: Colors.lightBlue.shade50,
-                      side: BorderSide.none,
-                      onPressed: _showTimeAndCalendarDialog,
-                    ),
-                    const SizedBox(width: 8),
-                    ActionChip(
-                      avatar: const Icon(Icons.repeat, size: 16, color: Colors.lightBlue),
-                      label: Text(
-                        currentRepeat != null
-                            ? '每 ${currentRepeat!.interval} ${{
-                                'day': '天',
-                                'week': '周',
-                                'month': '月',
-                                'year': '年',
-                              }[currentRepeat!.unit]}'
-                            : (existingTask?.repeatRuleText ?? '重复'),
-                        style: const TextStyle(color: Colors.lightBlue, fontSize: 12),
-                      ),
-                      backgroundColor: Colors.lightBlue.shade50,
-                      side: BorderSide.none,
-                      onPressed: existingTask != null
-                          ? () => _showCalendarSnackBar(context, '重复规则创建后不可修改，请删除重建')
-                          : _showRepeatDialog,
-                    ),
-                    if (addToCalendar) ...[
-                      const SizedBox(width: 8),
-                      const Icon(Icons.event_available, size: 16, color: Colors.green),
-                      const Text(' 已加日程', style: TextStyle(fontSize: 12, color: Colors.green)),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 10),
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
@@ -919,9 +575,6 @@ void showTaskBottomSheet(
                       }
 
                       if (existingTask != null) {
-                        int? choice = await _askUpdateFuture();
-                        if (choice == null) return;
-
                         taskData.editTaskFull(
                           existingTask.id,
                           titleController.text,
@@ -931,9 +584,11 @@ void showTaskBottomSheet(
                           calendarSaved,
                           selectedList,
                           selectedTags,
-                          updateFuture: choice == 1,
+                          updateFuture: false,
                           newIsEvent: isEvent,
                           skipOverdueCount: skipOverdue,
+                          newTimeBucket: selectedBucket,
+                          clearTimeBucket: selectedBucket == null,
                         );
                       } else {
                         taskData.addTask(
@@ -947,6 +602,7 @@ void showTaskBottomSheet(
                             listName: selectedList,
                             tags: selectedTags,
                             isEvent: isEvent,
+                            timeBucket: selectedBucket,
                           ),
                           repeat: currentRepeat,
                         );

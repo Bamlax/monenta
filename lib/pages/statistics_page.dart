@@ -75,18 +75,29 @@ class _StatisticsPageState extends State<StatisticsPage> {
             listCounts[listName] = (listCounts[listName] ?? 0) + 1;
           }
 
-          // 逾期指标统计计算
-          int totalOverdue = 0;
+          // 逾期指标：根据所选时间范围严格联动
+          int rangeTotalOverdue = 0;
           Map<String, int> listOverdueCounts = {};
-          final allTodos = taskData.allTasks.where((t) => !t.isEvent && !t.isReadOnly).toList();
-          for (var t in allTodos) {
+          final rangeTodos = rangeTasks.where((t) => !t.isEvent && !t.isReadOnly).toList();
+          for (var t in rangeTodos) {
             if (t.overdueCount > 0) {
-              totalOverdue += t.overdueCount;
+              rangeTotalOverdue += t.overdueCount;
               String lName = t.listName ?? '无清单';
               listOverdueCounts[lName] = (listOverdueCounts[lName] ?? 0) + t.overdueCount;
             }
           }
-          double avgOverdue = allTodos.isEmpty ? 0.00 : (totalOverdue / allTodos.length);
+          double avgOverdue = rangeTodos.isEmpty ? 0.00 : (rangeTotalOverdue / rangeTodos.length);
+
+          // 专注时长统计（包含番茄钟与正计时的所有记录）
+          int totalFocusSeconds = 0;
+          for (final record in taskData.focusRecords) {
+            if (record.date.isAfter(startDate.subtract(const Duration(seconds: 1))) &&
+                record.date.isBefore(now.add(const Duration(days: 1)))) {
+              totalFocusSeconds += record.seconds;
+            }
+          }
+          final focusMinutes = totalFocusSeconds ~/ 60;
+          final focusHours = (focusMinutes / 60).toStringAsFixed(1);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -100,9 +111,40 @@ class _StatisticsPageState extends State<StatisticsPage> {
                   width: double.infinity,
                   child: CustomPaint(painter: LineChartPainter(lineData, lineLabels)),
                 ),
-                const SizedBox(height: 35),
+                const SizedBox(height: 30),
 
-                // 完成率与清单完成分布 (左右并排)
+                // 🔴 专注时长汇总卡片（极简无蓝框设计）
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FBFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.local_fire_department_outlined, color: Colors.grey.shade700, size: 24),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('$selectedRange专注总时长', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              const SizedBox(height: 2),
+                              Text('$focusHours 小时 ($focusMinutes 分钟)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Icon(Icons.timer_outlined, color: Colors.grey.shade400, size: 22),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 30),
+
+                // 完成率与清单分布
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -182,15 +224,14 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 ),
                 const SizedBox(height: 35),
 
-                // 逾期统计指标与清单逾期分布 (左右并排)
+                // 逾期统计指标与清单逾期分布 (左右并排，范围严格联动)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 左边：逾期统计指标卡片
                     Expanded(
                       child: Column(
                         children: [
-                          _buildSectionTitle('逾期统计分析'),
+                          _buildSectionTitle('$selectedRange逾期统计'),
                           const SizedBox(height: 20),
                           Container(
                             height: 150,
@@ -210,18 +251,18 @@ class _StatisticsPageState extends State<StatisticsPage> {
                                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.orange),
                                     ),
                                     const SizedBox(height: 2),
-                                    const Text('平均逾期/任务', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                    const Text('范围平均逾期', style: TextStyle(fontSize: 10, color: Colors.grey)),
                                   ],
                                 ),
                                 Divider(height: 12, color: Colors.grey.shade200, indent: 20, endIndent: 20),
                                 Column(
                                   children: [
                                     Text(
-                                      '$totalOverdue 次',
+                                      '$rangeTotalOverdue 次',
                                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.redAccent),
                                     ),
                                     const SizedBox(height: 2),
-                                    const Text('总逾期次数', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                    const Text('范围总逾期', style: TextStyle(fontSize: 10, color: Colors.grey)),
                                   ],
                                 ),
                               ],
@@ -231,7 +272,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    // 右边：清单逾期分布饼图
                     Expanded(
                       child: Column(
                         children: [
@@ -241,7 +281,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                             Container(
                               height: 150,
                               alignment: Alignment.center,
-                              child: const Text('暂无逾期记录\n执行力极佳~', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.4)),
+                              child: const Text('该时段无逾期记录\n执行力极佳~', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.4)),
                             )
                           else ...[
                             SizedBox(

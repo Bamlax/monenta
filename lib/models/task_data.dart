@@ -105,8 +105,6 @@ class Task {
   bool isReadOnly;
   int overdueCount;
   String? timeBucket;
-
-  // 🔴 任务累计专注用时（秒）
   int focusDurationSeconds;
 
   Task({
@@ -302,7 +300,6 @@ class TaskData extends ChangeNotifier {
     saveData();
   }
 
-  // 🔴 记录专注时长并累加到对应任务中
   void addFocusRecord(int seconds, {String? taskId}) {
     if (seconds <= 0) return;
     String? listName;
@@ -310,7 +307,7 @@ class TaskData extends ChangeNotifier {
       final idx = _tasks.indexWhere((t) => t.id == taskId);
       if (idx != -1) {
         listName = _tasks[idx].listName;
-        _tasks[idx].focusDurationSeconds += seconds; // 累加至任务身上
+        _tasks[idx].focusDurationSeconds += seconds;
       }
     }
 
@@ -630,20 +627,35 @@ class TaskData extends ChangeNotifier {
     notifyListeners();
   }
 
+  // 🔴 核心：严格实现逾期三原则判定
   bool _checkIsOverdue(Task task, DateTime? newDate) {
+    // 排除事件、只读节假日、已完成待办、原本无日期的待办
     if (task.isEvent || task.isDone || task.isReadOnly || task.date == null) {
       return false;
     }
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final oldDay = DateTime(task.date!.year, task.date!.month, task.date!.day);
 
+    // 规则 3：把有具体日期的待办移到收件箱 (newDate == null) -> 逾期
     if (newDate == null) {
       return true;
     }
 
     final targetDay = DateTime(newDate.year, newDate.month, newDate.day);
-    return oldDay.isBefore(today) && !targetDay.isAtSameMomentAs(oldDay);
+
+    // 规则 1：今天的待办推迟到今天之后 -> 逾期
+    if (oldDay.isAtSameMomentAs(today) && targetDay.isAfter(today)) {
+      return true;
+    }
+
+    // 规则 2：过去未完成的待办重新安排在今天或今天之后 -> 逾期
+    if (oldDay.isBefore(today) && !targetDay.isBefore(today)) {
+      return true;
+    }
+
+    return false;
   }
 
   void updateTaskDate(String id, DateTime? newDate, {bool skipOverdueCount = false}) {

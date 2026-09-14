@@ -153,9 +153,7 @@ void showTaskBottomSheet(
   List<String> selectedTags = existingTask?.tags.toList() ?? defaultTags ?? [];
   RepeatConfig? currentRepeat;
 
-  // 选中的分栏
   String? selectedBucket = existingTask?.timeBucket ?? defaultTimeBucket;
-
   bool skipOverdue = false;
 
   bool isToday(DateTime? d) {
@@ -363,7 +361,7 @@ void showTaskBottomSheet(
                 ),
                 const SizedBox(height: 10),
 
-                // 日期选择芯片
+                // 日期选择
                 Wrap(
                   spacing: 8,
                   children: [
@@ -475,7 +473,6 @@ void showTaskBottomSheet(
                 ),
                 const SizedBox(height: 10),
 
-                // 🔴 每日分栏选择区（仅在设置中开启分栏时展示）
                 if (taskData.enableTimeBuckets && taskData.timeBuckets.isNotEmpty) ...[
                   Row(
                     children: [
@@ -516,7 +513,6 @@ void showTaskBottomSheet(
                   const SizedBox(height: 10),
                 ],
 
-                // 标签选择行
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(

@@ -805,18 +805,16 @@ class _HomePageState extends State<HomePage> {
                 buildDefaultDragHandles: false,
                 itemCount: bucketFlatItems.length,
                 onReorder: (oldIndex, newIndex) {
-                  // 1. 标题本身不可拖拽
                   final item = bucketFlatItems[oldIndex];
-                  if (item is String) return;
+                  if (item is String) return; // 分栏标题栏自身不可拖动
 
-                  final task = item as Task;
-                  if (task.isReadOnly) return;
+                  final movedTask = item as Task;
+                  if (movedTask.isReadOnly) return;
 
-                  // 2. 将拖拽元素从原列表镜像中移除，模拟真实的最终插入形态
+                  // 1. 构建镜像列表并移除当前移动项
                   final listCopy = List<dynamic>.from(bucketFlatItems);
                   listCopy.removeAt(oldIndex);
 
-                  // 修正插入的目标位置
                   int insertIndex = newIndex;
                   if (oldIndex < newIndex) {
                     insertIndex--;
@@ -825,10 +823,8 @@ class _HomePageState extends State<HomePage> {
                   if (insertIndex > listCopy.length)
                     insertIndex = listCopy.length;
 
-                  // 3. 核心判定算法：
+                  // 2. 计算目标归属分栏
                   String? targetBucket;
-
-                  // 情况 A：拖到最顶部（第一个分栏上方），自动吸附放入第一个分栏
                   if (insertIndex == 0) {
                     final firstHeader = listCopy.firstWhere(
                       (e) => e is String,
@@ -837,15 +833,7 @@ class _HomePageState extends State<HomePage> {
                     if (firstHeader != null && firstHeader != '未分栏') {
                       targetBucket = firstHeader as String;
                     }
-                  }
-                  // 情况 B：正好插在某分栏标题的正后方（即刚好放到分栏标题下方）
-                  else if (insertIndex > 0 &&
-                      listCopy[insertIndex - 1] is String) {
-                    final title = listCopy[insertIndex - 1] as String;
-                    targetBucket = title == '未分栏' ? null : title;
-                  }
-                  // 情况 C：插在两项之间，向上寻找最近的分栏标题
-                  else {
+                  } else {
                     for (int i = insertIndex - 1; i >= 0; i--) {
                       if (listCopy[i] is String) {
                         final title = listCopy[i] as String;
@@ -855,8 +843,28 @@ class _HomePageState extends State<HomePage> {
                     }
                   }
 
-                  // 4. 更新分栏归属
-                  taskData.updateTaskBucket(task.id, targetBucket);
+                  // 3. 确定相对插入的锚点任务（确定它在同分栏内插在谁的前面或后面）
+                  Task? anchorTask;
+                  bool insertAfter = false;
+
+                  if (insertIndex < listCopy.length &&
+                      listCopy[insertIndex] is Task) {
+                    anchorTask = listCopy[insertIndex] as Task;
+                    insertAfter = false;
+                  } else if (insertIndex - 1 >= 0 &&
+                      listCopy[insertIndex - 1] is Task) {
+                    anchorTask = listCopy[insertIndex - 1] as Task;
+                    insertAfter = true;
+                  }
+
+                  // 4. 调用持久化方法保存顺序
+                  taskData.reorderBucketTasks(
+                    _selectedDate,
+                    movedTask,
+                    targetBucket,
+                    anchorTask,
+                    insertAfter,
+                  );
                 },
                 itemBuilder: (context, index) {
                   final item = bucketFlatItems[index];

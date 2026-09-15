@@ -13,6 +13,14 @@ class VersionRecord {
 // 🔴 所有的版本更新记录存在这里
 const List<VersionRecord> versionHistory = [
     VersionRecord(
+    version: 'v1.5.2',
+    date: '2026-09-15',
+    updates: [
+      '修复：分栏待办无法自由移动',
+      '修复：日历详情待办不显示分栏和属性',
+    ],
+  ),
+    VersionRecord(
     version: 'v1.5.1',
     date: '2026-09-14',
     updates: [

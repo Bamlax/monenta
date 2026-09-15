@@ -885,6 +885,41 @@ class TaskData extends ChangeNotifier {
     notifyListeners();
   }
 
+  // 🔴 解决分栏内排序被定死的问题：支持同分栏内调整顺序以及跨分栏拖动
+  void reorderBucketTasks(DateTime date, Task movedTask, String? targetBucket, Task? anchorTask, bool insertAfter) {
+    if (movedTask.isReadOnly) return;
+
+    // 1. 更新分栏归属
+    movedTask.timeBucket = targetBucket;
+
+    // 2. 在底层全局 _tasks 列表中调整其实际位置
+    _tasks.remove(movedTask);
+
+    if (anchorTask != null) {
+      int anchorIndex = _tasks.indexOf(anchorTask);
+      if (anchorIndex != -1) {
+        _tasks.insert(insertAfter ? anchorIndex + 1 : anchorIndex, movedTask);
+      } else {
+        _tasks.add(movedTask);
+      }
+    } else {
+      // 如果没有锚点任务（比如该分栏为空，拖到标题正下方），找该天该分栏的末尾或该天任务末尾插入
+      int lastDayIdx = _tasks.lastIndexWhere((t) =>
+          t.date != null &&
+          t.date!.year == date.year &&
+          t.date!.month == date.month &&
+          t.date!.day == date.day);
+
+      if (lastDayIdx != -1) {
+        _tasks.insert(lastDayIdx + 1, movedTask);
+      } else {
+        _tasks.add(movedTask);
+      }
+    }
+
+    notifyListeners();
+  }
+
   void moveTaskGlobally(Task task, DateTime? newDate, Task? anchorTask, bool insertAfter) {
     if (task.isReadOnly) return;
 

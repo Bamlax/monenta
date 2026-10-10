@@ -62,9 +62,7 @@ Future<String?> _createSystemCalendarEvent({
   }
 
   final calendars = calendarsResult.data?.toList() ?? [];
-  final writableCalendars = calendars
-      .where((c) => c.id != null && !(c.isReadOnly ?? false))
-      .toList();
+  final writableCalendars = calendars.where((c) => c.id != null && !(c.isReadOnly ?? false)).toList();
 
   dc.Calendar? targetCalendar;
   for (final c in writableCalendars) {
@@ -97,9 +95,7 @@ Future<String?> _createSystemCalendarEvent({
     time?.minute ?? 0,
   );
 
-  final end = time == null
-      ? start.add(const Duration(days: 1))
-      : start.add(const Duration(minutes: 5));
+  final end = time == null ? start.add(const Duration(days: 1)) : start.add(const Duration(minutes: 5));
 
   final event = dc.Event(
     calendarId,
@@ -140,10 +136,8 @@ void showTaskBottomSheet(
   List<String>? defaultTags,
   String? defaultTimeBucket,
 }) {
-  final TextEditingController titleController =
-      TextEditingController(text: existingTask?.title ?? '');
-  final TextEditingController descController =
-      TextEditingController(text: existingTask?.description ?? '');
+  final TextEditingController titleController = TextEditingController(text: existingTask?.title ?? '');
+  final TextEditingController descController = TextEditingController(text: existingTask?.description ?? '');
 
   DateTime? taskDate = existingTask != null ? existingTask.date : defaultDate;
   TimeOfDay? selectedTime = existingTask?.time;
@@ -154,6 +148,14 @@ void showTaskBottomSheet(
   RepeatConfig? currentRepeat;
 
   String? selectedBucket = existingTask?.timeBucket ?? defaultTimeBucket;
+  String? selectedChainId = existingTask?.chainId;
+
+  String timerMode = existingTask?.timerMode ?? taskData.defaultTimerMode;
+  int countdownMinutes = existingTask?.countdownMinutes ?? taskData.defaultCountdownMinutes;
+  int prepMinutes = existingTask?.prepMinutes ?? taskData.defaultPrepMinutes;
+  bool allowPause = existingTask?.allowPause ?? taskData.defaultAllowPause;
+  int pauseLimitMinutes = existingTask?.pauseLimitMinutes ?? taskData.defaultPauseLimitMinutes;
+
   bool skipOverdue = false;
 
   bool isToday(DateTime? d) {
@@ -213,6 +215,63 @@ void showTaskBottomSheet(
     );
   }
 
+  void _showNewChainDialog(BuildContext ctx, Function(TaskChain) onCreated) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: ctx,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('新建链', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '如：背单词、每日早起、健身打卡'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) {
+                final chain = taskData.addChain(ctrl.text.trim());
+                onCreated(chain);
+                Navigator.pop(dCtx);
+              }
+            },
+            child: const Text('创建', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCustomMinutesDialog(BuildContext ctx, String title, int initialVal, Function(int) onVal) {
+    final ctrl = TextEditingController(text: '$initialVal');
+    showDialog(
+      context: ctx,
+      builder: (dCtx) => AlertDialog(
+        title: Text(title, style: const TextStyle(color: Colors.lightBlue, fontSize: 15, fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(suffixText: '分钟'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              final v = int.tryParse(ctrl.text.trim());
+              if (v != null && v >= 0) {
+                onVal(v);
+                Navigator.pop(dCtx);
+              }
+            },
+            child: const Text('确定', style: TextStyle(color: Colors.lightBlue)),
+          ),
+        ],
+      ),
+    );
+  }
+
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -220,73 +279,7 @@ void showTaskBottomSheet(
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setModalState) {
-          void _showNewListDialog() {
-            final ctrl = TextEditingController();
-            Color selectedColor = Colors.blue;
-            final colors = [
-              Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red,
-              Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan,
-            ];
-
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue)),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: colors.map((c) => GestureDetector(
-                        onTap: () => selectedColor = c,
-                        child: CircleAvatar(backgroundColor: c, radius: 16),
-                      )).toList(),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                  TextButton(
-                    onPressed: () {
-                      if (ctrl.text.trim().isNotEmpty) {
-                        taskData.addList(ctrl.text.trim(), selectedColor);
-                        setModalState(() => selectedList = ctrl.text.trim());
-                        Navigator.pop(ctx);
-                      }
-                    },
-                    child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          void _showNewTagDialog() {
-            final ctrl = TextEditingController();
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('新建标签', style: TextStyle(color: Colors.lightBlue)),
-                content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '标签名称')),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                  TextButton(
-                    onPressed: () {
-                      if (ctrl.text.trim().isNotEmpty) {
-                        taskData.addTag(ctrl.text.trim());
-                        setModalState(() => selectedTags.add(ctrl.text.trim()));
-                        Navigator.pop(ctx);
-                      }
-                    },
-                    child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
-                  ),
-                ],
-              ),
-            );
-          }
+          final currentChain = taskData.getChain(selectedChainId);
 
           return Padding(
             padding: EdgeInsets.only(
@@ -299,25 +292,142 @@ void showTaskBottomSheet(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: CupertinoSlidingSegmentedControl<bool>(
-                    groupValue: isEvent,
-                    children: const {
-                      false: Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7), child: Text('代办', style: TextStyle(fontSize: 12))),
-                      true: Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7), child: Text('事件', style: TextStyle(fontSize: 12))),
-                    },
-                    thumbColor: Colors.lightBlue.shade50,
-                    backgroundColor: Colors.grey.shade100,
-                    onValueChanged: (value) {
-                      if (value == null) return;
-                      setModalState(() => isEvent = value);
-                    },
-                  ),
+                // 顶部代办/事件切换 与 浅蓝风格链选择器
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoSlidingSegmentedControl<bool>(
+                      groupValue: isEvent,
+                      children: const {
+                        false: Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7), child: Text('代办', style: TextStyle(fontSize: 12))),
+                        true: Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7), child: Text('事件', style: TextStyle(fontSize: 12))),
+                      },
+                      thumbColor: Colors.lightBlue.shade50,
+                      backgroundColor: Colors.grey.shade100,
+                      onValueChanged: (value) {
+                        if (value == null) return;
+                        setModalState(() {
+                          isEvent = value;
+                          if (isEvent) selectedChainId = null;
+                        });
+                      },
+                    ),
+                    if (!isEvent)
+                      PopupMenuButton<String>(
+                        tooltip: '选择链',
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        onSelected: (val) {
+                          if (val == '__new__') {
+                            _showNewChainDialog(context, (c) {
+                              setModalState(() => selectedChainId = c.id);
+                            });
+                          } else if (val == '__none__') {
+                            setModalState(() => selectedChainId = null);
+                          } else {
+                            setModalState(() => selectedChainId = val);
+                          }
+                        },
+                        itemBuilder: (pCtx) {
+                          final items = <PopupMenuEntry<String>>[];
+                          if (taskData.myChains.isEmpty) {
+                            items.add(
+                              const PopupMenuItem<String>(
+                                value: '__new__',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.add, size: 16, color: Colors.lightBlue),
+                                    SizedBox(width: 6),
+                                    Text('新建链', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          } else {
+                            items.add(
+                              const PopupMenuItem<String>(
+                                value: '__none__',
+                                child: Text('无链', style: TextStyle(color: Colors.grey)),
+                              ),
+                            );
+                            for (final c in taskData.myChains) {
+                              items.add(
+                                PopupMenuItem<String>(
+                                  value: c.id,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(c.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: Colors.lightBlue.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text('#${c.count}', style: TextStyle(fontSize: 11, color: Colors.lightBlue.shade800, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            items.add(const PopupMenuDivider());
+                            items.add(
+                              const PopupMenuItem<String>(
+                                value: '__new__',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.add, size: 16, color: Colors.lightBlue),
+                                    SizedBox(width: 6),
+                                    Text('新建链...', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          return items;
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: selectedChainId != null ? Colors.lightBlue.shade50 : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: selectedChainId != null ? Colors.lightBlue.shade200 : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.link,
+                                size: 15,
+                                color: selectedChainId != null ? Colors.lightBlue.shade700 : Colors.grey.shade700,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                currentChain != null ? currentChain.name : '链',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: selectedChainId != null ? Colors.lightBlue.shade800 : Colors.grey.shade700,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Icon(
+                                Icons.arrow_drop_down,
+                                size: 16,
+                                color: selectedChainId != null ? Colors.lightBlue.shade700 : Colors.grey.shade700,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 const Divider(height: 1),
                 const SizedBox(height: 8),
+
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -337,12 +447,6 @@ void showTaskBottomSheet(
                           ),
                         ),
                       ),
-                      ActionChip(
-                        label: const Text('+ 清单', style: TextStyle(color: Colors.lightBlue, fontSize: 12)),
-                        backgroundColor: Colors.white,
-                        side: BorderSide(color: Colors.lightBlue.shade200),
-                        onPressed: _showNewListDialog,
-                      ),
                     ],
                   ),
                 ),
@@ -361,7 +465,7 @@ void showTaskBottomSheet(
                 ),
                 const SizedBox(height: 10),
 
-                // 日期选择
+                // 日期选择行
                 Wrap(
                   spacing: 8,
                   children: [
@@ -473,6 +577,7 @@ void showTaskBottomSheet(
                 ),
                 const SizedBox(height: 10),
 
+                // 时段分栏行
                 if (taskData.enableTimeBuckets && taskData.timeBuckets.isNotEmpty) ...[
                   Row(
                     children: [
@@ -513,6 +618,130 @@ void showTaskBottomSheet(
                   const SizedBox(height: 10),
                 ],
 
+                // 计时设定：去除外框，同一栏横向排布，最右侧放置允许暂停控件
+                if (!isEvent) ...[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.timer_outlined, size: 16, color: Colors.lightBlue),
+                        const SizedBox(width: 8),
+                        CupertinoSlidingSegmentedControl<String>(
+                          groupValue: timerMode,
+                          children: const {
+                            'countdown': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text('倒计时', style: TextStyle(fontSize: 11))),
+                            'countup': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text('正计时', style: TextStyle(fontSize: 11))),
+                          },
+                          thumbColor: Colors.lightBlue.shade50,
+                          backgroundColor: Colors.grey.shade100,
+                          onValueChanged: (v) {
+                            if (v != null) setModalState(() => timerMode = v);
+                          },
+                        ),
+                        if (timerMode == 'countdown') ...[
+                          const SizedBox(width: 6),
+                          InkWell(
+                            onTap: () => _showCustomMinutesDialog(
+                              context,
+                              '设定倒计时时长',
+                              countdownMinutes,
+                              (v) => setModalState(() => countdownMinutes = v),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.lightBlue.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '$countdownMinutes 分钟',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.lightBlue.shade800),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 6),
+                        // 预约控件全部切为蓝色
+                        InkWell(
+                          onTap: () => _showCustomMinutesDialog(
+                            context,
+                            '设定预约时长',
+                            prepMinutes,
+                            (v) => setModalState(() => prepMinutes = v),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: prepMinutes > 0 ? Colors.lightBlue.shade50 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              prepMinutes > 0 ? '预约 $prepMinutes 分' : '无预约',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: prepMinutes > 0 ? Colors.lightBlue.shade800 : Colors.grey.shade600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // 允许暂停控件（同一栏最右侧，浅蓝体系）
+                        InkWell(
+                          onTap: () {
+                            setModalState(() {
+                              allowPause = !allowPause;
+                            });
+                          },
+                          onLongPress: () {
+                            _showCustomMinutesDialog(
+                              context,
+                              '设定暂停限时',
+                              pauseLimitMinutes,
+                              (v) => setModalState(() {
+                                allowPause = true;
+                                pauseLimitMinutes = v;
+                              }),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: allowPause ? Colors.lightBlue.shade50 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: allowPause ? Colors.lightBlue.shade200 : Colors.transparent,
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  allowPause ? Icons.pause_circle_filled : Icons.pause_circle_outline,
+                                  size: 14,
+                                  color: allowPause ? Colors.lightBlue.shade800 : Colors.grey.shade600,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  allowPause ? '允许暂停 $pauseLimitMinutes分' : '不可暂停',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: allowPause ? Colors.lightBlue.shade800 : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // 标签栏
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -538,12 +767,6 @@ void showTaskBottomSheet(
                           },
                         ),
                       )),
-                      ActionChip(
-                        label: const Text('+ 标签', style: TextStyle(color: Colors.lightBlue, fontSize: 12)),
-                        backgroundColor: Colors.white,
-                        side: BorderSide(color: Colors.lightBlue.shade200),
-                        onPressed: _showNewTagDialog,
-                      ),
                     ],
                   ),
                 ),
@@ -585,6 +808,13 @@ void showTaskBottomSheet(
                           skipOverdueCount: skipOverdue,
                           newTimeBucket: selectedBucket,
                           clearTimeBucket: selectedBucket == null,
+                          newChainId: selectedChainId,
+                          clearChainId: selectedChainId == null,
+                          newTimerMode: timerMode,
+                          newCountdownMinutes: countdownMinutes,
+                          newPrepMinutes: prepMinutes,
+                          newAllowPause: allowPause,
+                          newPauseLimitMinutes: pauseLimitMinutes,
                         );
                       } else {
                         taskData.addTask(
@@ -599,6 +829,12 @@ void showTaskBottomSheet(
                             tags: selectedTags,
                             isEvent: isEvent,
                             timeBucket: selectedBucket,
+                            chainId: isEvent ? null : selectedChainId,
+                            timerMode: timerMode,
+                            countdownMinutes: countdownMinutes,
+                            prepMinutes: prepMinutes,
+                            allowPause: allowPause,
+                            pauseLimitMinutes: pauseLimitMinutes,
                           ),
                           repeat: currentRepeat,
                         );

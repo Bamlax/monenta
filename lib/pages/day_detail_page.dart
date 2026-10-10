@@ -7,10 +7,7 @@ import '../widgets/task_sheet.dart';
 class DayDetailPage extends StatefulWidget {
   final DateTime date;
 
-  const DayDetailPage({
-    super.key,
-    required this.date,
-  });
+  const DayDetailPage({super.key, required this.date});
 
   @override
   State<DayDetailPage> createState() => _DayDetailPageState();
@@ -28,6 +25,57 @@ class _DayDetailPageState extends State<DayDetailPage> {
     return remainM > 0 ? '${hours}小时${remainM}分' : '$hours小时';
   }
 
+  void _showMarkIncompleteDialog(BuildContext context, Task task) {
+    final ctrl = TextEditingController(text: task.failRemark ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('标记未完成', style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '标记为未完成会将所属链重置为 1，任务将以红色删除线标示。',
+              style: TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: '输入未完成备注原因...',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          if (task.isFailed)
+            TextButton(
+              onPressed: () {
+                taskData.clearTaskFailure(task.id);
+                Navigator.pop(ctx);
+              },
+              child: const Text('清除未完成状态', style: TextStyle(color: Colors.grey)),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              taskData.markTaskIncomplete(task.id, ctrl.text.trim());
+              Navigator.pop(ctx);
+            },
+            child: const Text('确认标记', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<bool?> _askRepeatAction(BuildContext context, String actionName) {
     return showDialog<bool>(
       context: context,
@@ -35,14 +83,8 @@ class _DayDetailPageState extends State<DayDetailPage> {
         title: Text(actionName, style: const TextStyle(color: Colors.lightBlue)),
         content: const Text('这是一个重复事件，您希望将操作应用到哪些事件？'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('仅当前事件', style: TextStyle(color: Colors.black87)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('所有后续事件', style: TextStyle(color: Colors.lightBlue)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('仅当前事件', style: TextStyle(color: Colors.black87))),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('所有后续事件', style: TextStyle(color: Colors.lightBlue))),
         ],
       ),
     );
@@ -66,16 +108,10 @@ class _DayDetailPageState extends State<DayDetailPage> {
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 6,
             children: [
-              Text(
-                task.title,
-                style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.normal),
-              ),
+              Text(task.title, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.normal)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4)),
                 child: Text('节假日', style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
               ),
             ],
@@ -145,16 +181,25 @@ class _DayDetailPageState extends State<DayDetailPage> {
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           minLeadingWidth: 24,
-          leading: task.isEvent
+          leading: (task.isEvent || task.date == null)
               ? const SizedBox(width: 24, height: 24)
-              : SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Checkbox(
-                    value: task.isDone,
-                    activeColor: listColor,
-                    side: BorderSide(color: listColor, width: 2),
-                    onChanged: (_) => taskData.toggleTaskDone(task.id),
+              : GestureDetector(
+                  onLongPress: () => _showMarkIncompleteDialog(context, task),
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: task.isDone,
+                      activeColor: task.isFailed ? Colors.red : listColor,
+                      side: BorderSide(color: task.isFailed ? Colors.red : listColor, width: 2),
+                      onChanged: (_) {
+                        if (task.isFailed) {
+                          taskData.clearTaskFailure(task.id);
+                        } else {
+                          taskData.toggleTaskDone(task.id);
+                        }
+                      },
+                    ),
                   ),
                 ),
           onTap: () => showTaskBottomSheet(context, existingTask: task, defaultDate: widget.date),
@@ -165,8 +210,14 @@ class _DayDetailPageState extends State<DayDetailPage> {
               Text(
                 task.title,
                 style: TextStyle(
-                  decoration: (!task.isEvent && task.isDone) ? TextDecoration.lineThrough : null,
-                  color: task.isEvent ? Colors.black87 : (task.isDone ? Colors.grey : Colors.black87),
+                  decoration: task.isFailed
+                      ? TextDecoration.lineThrough
+                      : ((!task.isEvent && task.isDone) ? TextDecoration.lineThrough : null),
+                  decorationColor: task.isFailed ? Colors.red : null,
+                  decorationThickness: task.isFailed ? 2.0 : 1.0,
+                  color: task.isFailed
+                      ? Colors.red.shade700
+                      : (task.isEvent ? Colors.black87 : (task.isDone ? Colors.grey : Colors.black87)),
                 ),
               ),
               if (task.focusDurationSeconds > 0)
@@ -182,10 +233,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
                     children: [
                       Icon(Icons.timer_outlined, size: 10, color: Colors.green.shade700),
                       const SizedBox(width: 2),
-                      Text(
-                        _formatFocusDuration(task.focusDurationSeconds),
-                        style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.bold),
-                      ),
+                      Text(_formatFocusDuration(task.focusDurationSeconds), style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -197,10 +245,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: Colors.red.shade200, width: 0.6),
                   ),
-                  child: Text(
-                    '逾期 ${task.overdueCount} 次',
-                    style: TextStyle(fontSize: 9, color: Colors.red.shade700, fontWeight: FontWeight.bold),
-                  ),
+                  child: Text('逾期 ${task.overdueCount} 次', style: TextStyle(fontSize: 9, color: Colors.red.shade700, fontWeight: FontWeight.bold)),
                 ),
               if (task.repeatGroupId != null)
                 const Icon(Icons.repeat, size: 14, color: Colors.lightBlue),
@@ -211,10 +256,19 @@ class _DayDetailPageState extends State<DayDetailPage> {
               )),
             ],
           ),
-          subtitle: (task.description.isNotEmpty || timeText != null || task.repeatRuleText != null)
+          subtitle: (task.isFailed && task.failRemark != null && task.failRemark!.isNotEmpty) ||
+                  task.description.isNotEmpty ||
+                  timeText != null ||
+                  task.repeatRuleText != null
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 移除“备注：”字样
+                    if (task.isFailed && task.failRemark != null && task.failRemark!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 2),
+                        child: Text(task.failRemark!, style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w500)),
+                      ),
                     if (task.description.isNotEmpty)
                       Text(task.description, style: const TextStyle(fontSize: 13)),
                     Padding(
@@ -242,17 +296,42 @@ class _DayDetailPageState extends State<DayDetailPage> {
               : null,
           trailing: task.isEvent
               ? null
-              : IconButton(
-                  icon: const Icon(Icons.alarm, color: Colors.lightBlue),
-                  onPressed: () {
-                    taskData.setFocusTask(task);
-                    FocusTimerService.instance.setTask(
-                      taskId: task.id,
-                      title: task.title,
-                    );
-                    appTabIndex.value = 2;
-                    Navigator.pop(context); // 回到主界面进入专注页
-                  },
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (task.chainId != null) ...[
+                      Builder(
+                        builder: (context) {
+                          final chain = taskData.getChain(task.chainId);
+                          final chainText = task.isDone
+                              ? '#${task.chainNumber ?? chain?.count ?? 1}'
+                              : (chain?.name ?? '链');
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: task.isDone ? Colors.lightBlue.shade50 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: task.isDone ? Colors.lightBlue.shade200 : Colors.grey.shade300, width: 0.5),
+                            ),
+                            child: Text(
+                              chainText,
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: task.isDone ? Colors.lightBlue : Colors.black54),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    IconButton(
+                      icon: const Icon(Icons.alarm, color: Colors.lightBlue),
+                      onPressed: () {
+                        taskData.setFocusTask(task);
+                        FocusTimerService.instance.startTaskTimer(task);
+                        appTabIndex.value = 2;
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
                 ),
         ),
       ),
@@ -273,10 +352,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.lightBlue, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          titleText,
-          style: const TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold, fontSize: 17),
-        ),
+        title: Text(titleText, style: const TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold, fontSize: 17)),
       ),
       body: ListenableBuilder(
         listenable: taskData,
@@ -284,12 +360,9 @@ class _DayDetailPageState extends State<DayDetailPage> {
           final dailyTasks = taskData.getTasksByDate(widget.date);
 
           if (dailyTasks.isEmpty) {
-            return const Center(
-              child: Text('这天没有安排待办', style: TextStyle(color: Colors.grey)),
-            );
+            return const Center(child: Text('这天没有安排待办', style: TextStyle(color: Colors.grey)));
           }
 
-          // 未开启分栏时直接展示单日列表
           if (!taskData.enableTimeBuckets) {
             return ReorderableListView.builder(
               padding: const EdgeInsets.only(bottom: 80),
@@ -306,7 +379,6 @@ class _DayDetailPageState extends State<DayDetailPage> {
             );
           }
 
-          // 开启每日分栏后按各分栏组织数据流
           final List<dynamic> bucketFlatItems = [];
           final Map<String, List<Task>> bucketTaskMap = {};
 
@@ -346,15 +418,12 @@ class _DayDetailPageState extends State<DayDetailPage> {
               listCopy.removeAt(oldIndex);
 
               int insertIndex = newIndex;
-              if (oldIndex < newIndex) {
-                insertIndex--;
-              }
+              if (oldIndex < newIndex) insertIndex--;
               if (insertIndex < 0) insertIndex = 0;
               if (insertIndex > listCopy.length) insertIndex = listCopy.length;
 
               String? targetBucket;
 
-              // 拖到最顶部吸附至首个分栏
               if (insertIndex == 0) {
                 final firstHeader = listCopy.firstWhere((e) => e is String, orElse: () => null);
                 if (firstHeader != null && firstHeader != '未分栏') {
@@ -386,7 +455,6 @@ class _DayDetailPageState extends State<DayDetailPage> {
             itemBuilder: (context, index) {
               final item = bucketFlatItems[index];
 
-              // 极简分栏标题栏
               if (item is String) {
                 final isFirst = index == 0;
                 final isUnbucketed = item == '未分栏';
@@ -415,30 +483,17 @@ class _DayDetailPageState extends State<DayDetailPage> {
                               ),
                               child: Text(
                                 item,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF374151),
-                                  letterSpacing: 0.2,
-                                ),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF374151), letterSpacing: 0.2),
                               ),
                             ),
                             const Spacer(),
                             if (!isUnbucketed)
                               InkWell(
                                 borderRadius: BorderRadius.circular(12),
-                                onTap: () => showTaskBottomSheet(
-                                  context,
-                                  defaultDate: widget.date,
-                                  defaultTimeBucket: item,
-                                ),
+                                onTap: () => showTaskBottomSheet(context, defaultDate: widget.date, defaultTimeBucket: item),
                                 child: const Padding(
                                   padding: EdgeInsets.all(4),
-                                  child: Icon(
-                                    Icons.add,
-                                    size: 18,
-                                    color: Color(0xFF9CA3AF),
-                                  ),
+                                  child: Icon(Icons.add, size: 18, color: Color(0xFF9CA3AF)),
                                 ),
                               ),
                           ],
@@ -466,10 +521,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
         elevation: 2,
         backgroundColor: Colors.lightBlue,
         foregroundColor: Colors.white,
-        onPressed: () => showTaskBottomSheet(
-          context,
-          defaultDate: widget.date,
-        ),
+        onPressed: () => showTaskBottomSheet(context, defaultDate: widget.date),
         child: const Icon(Icons.add, size: 28),
       ),
     );

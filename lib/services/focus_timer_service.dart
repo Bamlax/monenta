@@ -3,329 +3,308 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../models/task_data.dart';
 
-enum FocusTimerMode { pomodoro, stopwatch }
-enum FocusTimerStatus { idle, running, paused }
+enum FocusPhase {
+  idle,
+  prep,
+  formal,
+  overtime,
+}
 
-class FocusTimerState {
-  final FocusTimerMode mode;
-  final FocusTimerStatus status;
-  final int pomodoroDuration;
-  final int stopwatchInitialSeconds;
-  final int seconds;
-  final String? taskId;
-  final String taskTitle;
+enum FocusTimerMode {
+  countdown,
+  countup,
+}
 
-  const FocusTimerState({
-    required this.mode,
-    required this.status,
-    required this.pomodoroDuration,
-    this.stopwatchInitialSeconds = 0,
-    required this.seconds,
-    this.taskId,
-    this.taskTitle = '自由专注',
-  });
-
-  bool get isRunning => status == FocusTimerStatus.running;
-  bool get isPaused => status == FocusTimerStatus.paused;
-  bool get isIdle => status == FocusTimerStatus.idle;
-
-  FocusTimerState copyWith({
-    FocusTimerMode? mode,
-    FocusTimerStatus? status,
-    int? pomodoroDuration,
-    int? stopwatchInitialSeconds,
-    int? seconds,
-    String? taskId,
-    bool clearTaskId = false,
-    String? taskTitle,
-  }) {
-    return FocusTimerState(
-      mode: mode ?? this.mode,
-      status: status ?? this.status,
-      pomodoroDuration: pomodoroDuration ?? this.pomodoroDuration,
-      stopwatchInitialSeconds: stopwatchInitialSeconds ?? this.stopwatchInitialSeconds,
-      seconds: seconds ?? this.seconds,
-      taskId: clearTaskId ? null : (taskId ?? this.taskId),
-      taskTitle: taskTitle ?? this.taskTitle,
-    );
-  }
+enum FocusTimerStatus {
+  idle,
+  running,
+  paused,
 }
 
 class FocusTimerService extends ChangeNotifier {
   static final FocusTimerService instance = FocusTimerService._internal();
   FocusTimerService._internal();
 
-  FocusTimerState _state = const FocusTimerState(
-    mode: FocusTimerMode.pomodoro,
-    status: FocusTimerStatus.idle,
-    pomodoroDuration: 25 * 60,
-    stopwatchInitialSeconds: 0,
-    seconds: 25 * 60,
-    taskTitle: '自由专注',
-  );
+  FocusPhase _phase = FocusPhase.idle;
+  FocusTimerMode _mode = FocusTimerMode.countdown;
+  FocusTimerStatus _status = FocusTimerStatus.idle;
+
+  String? _taskId;
+  String _taskTitle = '';
+
+  int _prepSeconds = 0;
+  int _formalSeconds = 25 * 60;
+  int _targetMinutes = 25;
+  int _overtimeSeconds = 0;
+  int _totalFocusedSeconds = 0;
+
+  bool _allowPause = false;
+  int _pauseLimitMinutes = 5;
+  int _pauseRemainingSeconds = 5 * 60; // 暂停可用剩余秒数
 
   Timer? _ticker;
   DateTime? _lastTimestamp;
-  int _sessionAccumulatedSeconds = 0; // 本轮专注实际流逝的秒数
   bool _initialized = false;
 
-  FocusTimerState get state => _state;
-  bool get isRunning => _state.isRunning;
-  bool get isPaused => _state.isPaused;
-  bool get isPomodoro => _state.mode == FocusTimerMode.pomodoro;
-  bool get isStopwatch => _state.mode == FocusTimerMode.stopwatch;
-  int get seconds => _state.seconds;
-  int get pomodoroMinutes => _state.pomodoroDuration ~/ 60;
-  int get stopwatchMinutes => _state.seconds ~/ 60;
+  FocusPhase get phase => _phase;
+  FocusTimerMode get mode => _mode;
+  FocusTimerStatus get status => _status;
+  bool get isRunning => _status == FocusTimerStatus.running;
+  bool get isPaused => _status == FocusTimerStatus.paused;
+  bool get isIdle => _status == FocusTimerStatus.idle;
+
+  String? get taskId => _taskId;
+  String get taskTitle => _taskTitle;
+  int get targetMinutes => _targetMinutes;
+  int get overtimeSeconds => _overtimeSeconds;
+  int get formalSeconds => _formalSeconds;
+  int get prepSeconds => _prepSeconds;
+  bool get allowPause => _allowPause;
+  int get pauseLimitMinutes => _pauseLimitMinutes;
+  int get pauseRemainingSeconds => _pauseRemainingSeconds;
+
+  int get displaySeconds {
+    switch (_phase) {
+      case FocusPhase.prep:
+        return _prepSeconds;
+      case FocusPhase.overtime:
+        return _overtimeSeconds;
+      case FocusPhase.formal:
+      case FocusPhase.idle:
+        return _formalSeconds;
+    }
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
-    FlutterForegroundTask.addTaskDataCallback(_onForegroundData);
     notifyListeners();
   }
 
-  void _onForegroundData(Object data) {
-    if (data is! Map) return;
-    try {
-      final map = Map<String, dynamic>.from(data);
-      if (map['type'] == 'tick') {
-        final secs = map['seconds'];
-        if (secs is int && _state.isRunning) {
-          _state = _state.copyWith(seconds: secs);
-          notifyListeners();
-        }
-      } else if (map['type'] == 'finished') {
-        _saveCurrentSession();
-        _stopLocalTicker();
-        _state = _state.copyWith(
-          status: FocusTimerStatus.idle,
-          seconds: isPomodoro ? _state.pomodoroDuration : _state.stopwatchInitialSeconds,
-        );
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('解析前台服务数据错误: $e');
-    }
-  }
+  // 必须绑定待办任务启动
+  Future<void> startTaskTimer(Task task) async {
+    _stopTicker();
+    _taskId = task.id;
+    _taskTitle = task.title;
+    _mode = task.timerMode == 'countup' ? FocusTimerMode.countup : FocusTimerMode.countdown;
+    _targetMinutes = task.countdownMinutes;
+    _allowPause = task.allowPause;
+    _pauseLimitMinutes = task.pauseLimitMinutes;
+    _pauseRemainingSeconds = task.pauseLimitMinutes * 60;
+    _overtimeSeconds = 0;
+    _totalFocusedSeconds = 0;
 
-  void _saveCurrentSession() {
-    if (_sessionAccumulatedSeconds > 0) {
-      taskData.addFocusRecord(_sessionAccumulatedSeconds, taskId: _state.taskId);
-      _sessionAccumulatedSeconds = 0;
-    }
-  }
-
-  Future<void> setTask({String? taskId, required String title}) async {
-    if (_state.isRunning) return;
-
-    _state = _state.copyWith(
-      taskId: taskId,
-      clearTaskId: taskId == null,
-      taskTitle: title,
-    );
-    notifyListeners();
-
-    if (await FlutterForegroundTask.isRunningService) {
-      FlutterForegroundTask.sendDataToTask({
-        'command': 'set_task',
-        'taskId': taskId,
-        'taskTitle': title,
-      });
-    }
-  }
-
-  Future<void> setMode(FocusTimerMode mode) async {
-    if (_state.isRunning) return;
-
-    _stopLocalTicker();
-    _lastTimestamp = null;
-
-    final secs = mode == FocusTimerMode.pomodoro
-        ? _state.pomodoroDuration
-        : _state.stopwatchInitialSeconds;
-
-    _state = _state.copyWith(
-      mode: mode,
-      status: FocusTimerStatus.idle,
-      seconds: secs,
-    );
-    notifyListeners();
-  }
-
-  Future<void> setPomodoroMinutes(int minutes) async {
-    if (_state.isRunning) return;
-
-    _stopLocalTicker();
-    final duration = minutes * 60;
-    _state = _state.copyWith(
-      mode: FocusTimerMode.pomodoro,
-      status: FocusTimerStatus.idle,
-      pomodoroDuration: duration,
-      seconds: duration,
-    );
-    notifyListeners();
-  }
-
-  Future<void> setStopwatchMinutes(int minutes) async {
-    if (_state.isRunning) return;
-
-    final duration = minutes * 60;
-    _state = _state.copyWith(
-      mode: FocusTimerMode.stopwatch,
-      status: FocusTimerStatus.idle,
-      stopwatchInitialSeconds: duration,
-      seconds: duration,
-    );
-    notifyListeners();
-  }
-
-  Future<void> start() async {
-    if (_state.isRunning) return;
-
-    if (isPomodoro && _state.seconds <= 0) {
-      _state = _state.copyWith(seconds: _state.pomodoroDuration);
+    final prepMins = task.prepMinutes;
+    if (prepMins > 0) {
+      _phase = FocusPhase.prep;
+      _prepSeconds = prepMins * 60;
+      _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
+    } else {
+      _phase = FocusPhase.formal;
+      _prepSeconds = 0;
+      _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
     }
 
-    _state = _state.copyWith(status: FocusTimerStatus.running);
+    _status = FocusTimerStatus.running;
     _lastTimestamp = DateTime.now();
-    _startLocalTicker();
+    _startTicker();
     notifyListeners();
 
-    await _startForegroundService();
-
-    if (await FlutterForegroundTask.isRunningService) {
-      FlutterForegroundTask.sendDataToTask({
-        'command': 'start',
-        'mode': isPomodoro ? 'pomodoro' : 'stopwatch',
-        'seconds': _state.seconds,
-        'pomodoroDuration': _state.pomodoroDuration,
-        'taskId': _state.taskId,
-        'taskTitle': _state.taskTitle,
-      });
-    }
+    await _startLiveActivity();
   }
 
-  Future<void> pause() async {
-    if (!_state.isRunning) return;
+  void start() {
+    if (_taskId == null) return;
+    if (isRunning) return;
 
-    _tickNow();
-    _stopLocalTicker();
+    if (_phase == FocusPhase.idle) {
+      _phase = FocusPhase.formal;
+      _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
+    }
+    _status = FocusTimerStatus.running;
+    _lastTimestamp = DateTime.now();
+    _startTicker();
+    notifyListeners();
+    _startLiveActivity();
+  }
+
+  // 预约阶段禁止暂停；非可暂停待办禁止暂停
+  void pause() {
+    if (!isRunning) return;
+    if (_phase == FocusPhase.prep) return; // 预约开始之后不能暂停
+    if (!_allowPause) return; // 不可暂停的待办只能一直计时
+
+    _tick();
+    _lastTimestamp = DateTime.now();
+    _status = FocusTimerStatus.paused;
+    notifyListeners();
+    _updateLiveActivityNotification();
+  }
+
+  void stop() {
+    _tick();
+    _saveSession();
+    _stopTicker();
     _lastTimestamp = null;
-
-    _state = _state.copyWith(status: FocusTimerStatus.paused);
+    _phase = FocusPhase.idle;
+    _status = FocusTimerStatus.idle;
+    _overtimeSeconds = 0;
+    _prepSeconds = 0;
+    _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
     notifyListeners();
-
-    if (await FlutterForegroundTask.isRunningService) {
-      FlutterForegroundTask.sendDataToTask({'command': 'pause'});
-    }
+    FlutterForegroundTask.stopService();
   }
 
-  Future<void> stop() async {
-    _tickNow();
-    _saveCurrentSession();
-    _stopLocalTicker();
-    _lastTimestamp = null;
-
-    final resetSecs = isPomodoro ? _state.pomodoroDuration : _state.stopwatchInitialSeconds;
-    _state = _state.copyWith(
-      status: FocusTimerStatus.idle,
-      seconds: resetSecs,
-    );
+  void skipPrep() {
+    if (_phase != FocusPhase.prep) return;
+    _phase = FocusPhase.formal;
+    _prepSeconds = 0;
+    _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
+    _lastTimestamp = DateTime.now();
     notifyListeners();
-
-    if (await FlutterForegroundTask.isRunningService) {
-      FlutterForegroundTask.sendDataToTask({'command': 'stop'});
-    }
+    _updateLiveActivityNotification();
   }
 
-  // 🔴 完成并自动结单
   Future<void> completeTaskAndFinishFocus() async {
-    _tickNow();
-    _saveCurrentSession();
+    _tick();
+    _saveSession();
 
-    if (_state.taskId != null) {
-      final task = taskData.allTasks.where((t) => t.id == _state.taskId).toList();
-      if (task.isNotEmpty && !task.first.isDone) {
-        taskData.toggleTaskDone(_state.taskId!);
+    if (_taskId != null) {
+      final match = taskData.allTasks.where((t) => t.id == _taskId).toList();
+      if (match.isNotEmpty && !match.first.isDone) {
+        taskData.toggleTaskDone(_taskId!);
       }
     }
 
-    _stopLocalTicker();
+    _stopTicker();
     _lastTimestamp = null;
-    final resetSecs = isPomodoro ? _state.pomodoroDuration : 0;
-    _state = _state.copyWith(
-      status: FocusTimerStatus.idle,
-      seconds: resetSecs,
-      taskId: null,
-      clearTaskId: true,
-      taskTitle: '自由专注',
-    );
+    _phase = FocusPhase.idle;
+    _status = FocusTimerStatus.idle;
+    _taskId = null;
+    _taskTitle = '';
+    _overtimeSeconds = 0;
+    _prepSeconds = 0;
+    _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
     notifyListeners();
+    FlutterForegroundTask.stopService();
+  }
 
-    if (await FlutterForegroundTask.isRunningService) {
-      FlutterForegroundTask.sendDataToTask({'command': 'stop'});
+  void _saveSession() {
+    if (_totalFocusedSeconds > 0) {
+      taskData.addFocusRecord(_totalFocusedSeconds, taskId: _taskId);
+      _totalFocusedSeconds = 0;
     }
   }
 
-  void _startLocalTicker() {
+  void _startTicker() {
     _ticker?.cancel();
-    // 采用匀速 1 秒步进器，结合物理时间差严格校准，解决时间不均与跳秒
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tickNow());
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
-  void _stopLocalTicker() {
+  void _stopTicker() {
     _ticker?.cancel();
     _ticker = null;
   }
 
-  void _tickNow() {
-    if (!_state.isRunning || _lastTimestamp == null) return;
+  void _tick() {
+    if (_lastTimestamp == null) return;
 
     final now = DateTime.now();
     final elapsed = now.difference(_lastTimestamp!).inSeconds;
     if (elapsed < 1) return;
 
     _lastTimestamp = _lastTimestamp!.add(Duration(seconds: elapsed));
-    _sessionAccumulatedSeconds += elapsed;
 
-    if (isPomodoro) {
-      final newSecs = _state.seconds - elapsed;
-      if (newSecs <= 0) {
-        _state = _state.copyWith(seconds: 0, status: FocusTimerStatus.idle);
-        _saveCurrentSession();
-        _stopLocalTicker();
-        _lastTimestamp = null;
-        notifyListeners();
-        return;
+    // 暂停状态下：倒计可用暂停剩余时间
+    if (_status == FocusTimerStatus.paused) {
+      if (_allowPause && _pauseRemainingSeconds > 0) {
+        _pauseRemainingSeconds -= elapsed;
+        if (_pauseRemainingSeconds < 0) _pauseRemainingSeconds = 0;
       }
-      _state = _state.copyWith(seconds: newSecs);
-    } else {
-      // 🔴 正计时匀速累加
-      _state = _state.copyWith(seconds: _state.seconds + elapsed);
+      notifyListeners();
+      _updateLiveActivityNotification();
+      return;
+    }
+
+    if (_status != FocusTimerStatus.running) return;
+
+    if (_phase == FocusPhase.prep) {
+      _prepSeconds -= elapsed;
+      if (_prepSeconds <= 0) {
+        _phase = FocusPhase.formal;
+        _prepSeconds = 0;
+        _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
+      }
+    } else if (_phase == FocusPhase.formal) {
+      _totalFocusedSeconds += elapsed;
+      if (_mode == FocusTimerMode.countdown) {
+        _formalSeconds -= elapsed;
+        if (_formalSeconds <= 0) {
+          _phase = FocusPhase.overtime;
+          _formalSeconds = 0;
+          _overtimeSeconds = 0;
+        }
+      } else {
+        _formalSeconds += elapsed;
+      }
+    } else if (_phase == FocusPhase.overtime) {
+      _totalFocusedSeconds += elapsed;
+      _overtimeSeconds += elapsed;
     }
 
     notifyListeners();
+    _updateLiveActivityNotification();
   }
 
-  Future<void> _startForegroundService() async {
+  // 申请实时活动通知权限并启动常驻通知
+  Future<void> _startLiveActivity() async {
+    final perm = await FlutterForegroundTask.checkNotificationPermission();
+    if (perm != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+
     if (await FlutterForegroundTask.isRunningService) return;
+
+    String initialTitle = 'Monenta · 实时活动';
+    String initialText = _phase == FocusPhase.prep
+        ? '预约准备中: ${formatSeconds(_prepSeconds)} · $_taskTitle'
+        : '${formatSeconds(displaySeconds)} · $_taskTitle';
 
     await FlutterForegroundTask.startService(
       serviceId: 1001,
       serviceTypes: const [ForegroundServiceTypes.dataSync],
-      notificationTitle: 'Monenta · 正在专注',
-      notificationText: '${formatSeconds(_state.seconds)} · ${_state.taskTitle}',
-      notificationButtons: const [
-        NotificationButton(id: 'pause', text: '暂停'),
-        NotificationButton(id: 'stop', text: '停止'),
-      ],
+      notificationTitle: initialTitle,
+      notificationText: initialText,
+      notificationButtons: const [], // 纯净实时活动卡片，无常驻按钮
       notificationInitialRoute: '/',
       callback: startCallback,
     );
   }
 
-  String get timeString => formatSeconds(_state.seconds);
+  void _updateLiveActivityNotification() {
+    FlutterForegroundTask.isRunningService.then((running) {
+      if (!running) return;
+
+      String title = 'Monenta · 实时活动';
+      String text = '';
+
+      if (_status == FocusTimerStatus.paused) {
+        title = 'Monenta · 实时活动 (暂停中)';
+        text = '剩余暂停时间: ${formatSeconds(_pauseRemainingSeconds)} · $_taskTitle';
+      } else if (_phase == FocusPhase.prep) {
+        text = '预约准备中: ${formatSeconds(_prepSeconds)} · $_taskTitle';
+      } else if (_phase == FocusPhase.overtime) {
+        text = '已超时: +${formatSeconds(_overtimeSeconds)} · $_taskTitle';
+      } else {
+        text = '专注中: ${formatSeconds(_formalSeconds)} · $_taskTitle';
+      }
+
+      FlutterForegroundTask.updateService(
+        notificationTitle: title,
+        notificationText: text,
+      );
+    });
+  }
 
   static String formatSeconds(int totalSeconds) {
     final safe = totalSeconds < 0 ? 0 : totalSeconds;
@@ -341,27 +320,23 @@ class FocusTimerService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _stopLocalTicker();
-    FlutterForegroundTask.removeTaskDataCallback(_onForegroundData);
+    _stopTicker();
     super.dispose();
   }
 }
 
 @pragma('vm:entry-point')
 void startCallback() {
-  FlutterForegroundTask.setTaskHandler(MonentaFocusTaskHandler());
+  FlutterForegroundTask.setTaskHandler(MonentaLiveActivityTaskHandler());
 }
 
-class MonentaFocusTaskHandler extends TaskHandler {
+class MonentaLiveActivityTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
-
   @override
   void onRepeatEvent(DateTime timestamp) {}
-
   @override
   void onReceiveData(Object data) {}
-
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../models/task_data.dart';
 import 'version_history_page.dart';
@@ -16,11 +17,7 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('新增分栏', style: TextStyle(color: Colors.lightBlue)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '如：清晨、夜间、深度专注等'),
-        ),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '如：清晨、夜间、深度专注等')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
           TextButton(
@@ -43,11 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('编辑分栏名称', style: TextStyle(color: Colors.lightBlue)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '输入新分栏名称'),
-        ),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '输入新分栏名称')),
         actions: [
           TextButton(
             onPressed: () {
@@ -92,11 +85,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('自定义每日分栏', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      TextButton.icon(
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('添加分栏'),
-                        onPressed: _showAddBucketDialog,
-                      ),
+                      TextButton.icon(icon: const Icon(Icons.add, size: 18), label: const Text('添加分栏'), onPressed: _showAddBucketDialog),
                     ],
                   ),
                 ),
@@ -131,6 +120,132 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _showEditChainDialog(TaskChain chain) {
+    final ctrl = TextEditingController(text: chain.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('修改链名称', style: TextStyle(color: Colors.lightBlue)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '输入新链名称'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              taskData.deleteChain(chain.id);
+              Navigator.pop(ctx);
+            },
+            child: const Text('删除链', style: TextStyle(color: Colors.red)),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) {
+                taskData.editChain(chain.id, ctrl.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManageChainsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => ListenableBuilder(
+          listenable: taskData,
+          builder: (context, _) {
+            return Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('链管理', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: taskData.myChains.isEmpty
+                      ? const Center(child: Text('暂无链，可在新建待办时创建', style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: taskData.myChains.length,
+                          itemBuilder: (context, index) {
+                            final chain = taskData.myChains[index];
+                            return ListTile(
+                              leading: const Icon(Icons.link, color: Colors.lightBlue),
+                              title: Text(chain.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              subtitle: Text('当前连续: #${chain.count}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.lightBlue),
+                                    onPressed: () => _showEditChainDialog(chain),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                                    onPressed: () => taskData.deleteChain(chain.id),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => _showEditChainDialog(chain),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showSetDefaultMinutesDialog(String title, int currentVal, Function(int) onVal) {
+    final ctrl = TextEditingController(text: '$currentVal');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title, style: const TextStyle(color: Colors.lightBlue, fontSize: 16)),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(suffixText: '分钟'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              final v = int.tryParse(ctrl.text.trim());
+              if (v != null && v >= 0) {
+                onVal(v);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.lightBlue)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,17 +262,16 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               const SizedBox(height: 10),
 
-              // 🔴 每日分栏开关
+              // 每日分栏开关
               SwitchListTile(
                 secondary: const Icon(Icons.view_agenda_outlined, color: Colors.lightBlue),
                 title: const Text('每日分栏', style: TextStyle(fontSize: 15)),
-                subtitle: const Text('按时段（上午、下午等）分块规划每日待办', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                subtitle: const Text('按时段分块规划每日待办', style: TextStyle(fontSize: 12, color: Colors.grey)),
                 value: taskData.enableTimeBuckets,
                 activeColor: Colors.lightBlue,
                 onChanged: (val) => taskData.toggleTimeBuckets(val),
               ),
 
-              // 开启时显示分栏字段管理入口
               if (taskData.enableTimeBuckets)
                 ListTile(
                   contentPadding: const EdgeInsets.only(left: 72, right: 16),
@@ -172,11 +286,94 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const Divider(height: 1, indent: 56),
 
-              // 法定节假日开关
+              // 链管理（已去掉可改名和删除提示）
+              ListTile(
+                leading: const Icon(Icons.link, color: Colors.lightBlue),
+                title: const Text('链管理', style: TextStyle(fontSize: 15)),
+                trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                onTap: _showManageChainsModal,
+              ),
+
+              const Divider(height: 1, indent: 56),
+
+              // 专注偏好设置
+              const Padding(
+                padding: EdgeInsets.only(left: 16, top: 16, bottom: 6),
+                child: Text('专注默认偏好', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+              ),
+
+              ListTile(
+                leading: const Icon(Icons.timer_outlined, color: Colors.lightBlue),
+                title: const Text('新建待办默认计时模式', style: TextStyle(fontSize: 14)),
+                trailing: CupertinoSlidingSegmentedControl<String>(
+                  groupValue: taskData.defaultTimerMode,
+                  children: const {
+                    'countdown': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text('倒计时', style: TextStyle(fontSize: 12))),
+                    'countup': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text('正计时', style: TextStyle(fontSize: 12))),
+                  },
+                  thumbColor: Colors.lightBlue.shade50,
+                  backgroundColor: Colors.grey.shade100,
+                  onValueChanged: (v) {
+                    if (v != null) taskData.updateDefaultFocusSettings(mode: v);
+                  },
+                ),
+              ),
+
+              ListTile(
+                contentPadding: const EdgeInsets.only(left: 72, right: 16),
+                title: const Text('倒计时默认时长', style: TextStyle(fontSize: 14)),
+                trailing: Text('${taskData.defaultCountdownMinutes} 分钟', style: const TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+                onTap: () => _showSetDefaultMinutesDialog(
+                  '修改倒计时默认时长',
+                  taskData.defaultCountdownMinutes,
+                  (v) => taskData.updateDefaultFocusSettings(countdownMins: v),
+                ),
+              ),
+
+              // 预约默认时长（蓝色字体）
+              ListTile(
+                contentPadding: const EdgeInsets.only(left: 72, right: 16),
+                title: const Text('预约默认时长', style: TextStyle(fontSize: 14)),
+                trailing: Text(
+                  taskData.defaultPrepMinutes > 0 ? '${taskData.defaultPrepMinutes} 分钟' : '无预约',
+                  style: const TextStyle(
+                    color: Colors.lightBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onTap: () => _showSetDefaultMinutesDialog(
+                  '修改预约默认时长',
+                  taskData.defaultPrepMinutes,
+                  (v) => taskData.updateDefaultFocusSettings(prepMins: v),
+                ),
+              ),
+
               SwitchListTile(
-                secondary: const Icon(Icons.celebration, color: Colors.orange),
+                contentPadding: const EdgeInsets.only(left: 72, right: 16),
+                title: const Text('默认允许暂停', style: TextStyle(fontSize: 14)),
+                value: taskData.defaultAllowPause,
+                activeColor: Colors.lightBlue,
+                onChanged: (v) => taskData.updateDefaultFocusSettings(allowPause: v),
+              ),
+
+              if (taskData.defaultAllowPause)
+                ListTile(
+                  contentPadding: const EdgeInsets.only(left: 72, right: 16),
+                  title: const Text('默认暂停限时', style: TextStyle(fontSize: 14)),
+                  trailing: Text('${taskData.defaultPauseLimitMinutes} 分钟', style: const TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+                  onTap: () => _showSetDefaultMinutesDialog(
+                    '修改默认暂停限时',
+                    taskData.defaultPauseLimitMinutes,
+                    (v) => taskData.updateDefaultFocusSettings(pauseLimitMins: v),
+                  ),
+                ),
+
+              const Divider(height: 1, indent: 56),
+
+              // 法定节假日（已去掉副标题提示）
+              SwitchListTile(
+                secondary: const Icon(Icons.celebration, color: Colors.lightBlue),
                 title: const Text('法定节假日', style: TextStyle(fontSize: 15)),
-                subtitle: const Text('自动在对应日期添加放假与节日事件', style: TextStyle(fontSize: 12, color: Colors.grey)),
                 value: taskData.enableHolidays,
                 activeColor: Colors.lightBlue,
                 onChanged: (val) => taskData.toggleHolidays(val),
@@ -191,13 +388,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const VersionHistoryPage()));
                 },
-              ),
-              const Divider(height: 1, indent: 56),
-              ListTile(
-                leading: const Icon(Icons.help_outline, color: Colors.grey),
-                title: const Text('关于 Monenta', style: TextStyle(fontSize: 15, color: Colors.grey)),
-                trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                onTap: () {},
               ),
             ],
           );

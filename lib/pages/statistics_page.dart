@@ -75,7 +75,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
             listCounts[listName] = (listCounts[listName] ?? 0) + 1;
           }
 
-          // 逾期指标：根据所选时间范围严格联动
           int rangeTotalOverdue = 0;
           Map<String, int> listOverdueCounts = {};
           final rangeTodos = rangeTasks.where((t) => !t.isEvent && !t.isReadOnly).toList();
@@ -88,7 +87,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
           }
           double avgOverdue = rangeTodos.isEmpty ? 0.00 : (rangeTotalOverdue / rangeTodos.length);
 
-          // 专注时长统计（包含番茄钟与正计时的所有记录）
+          // 专注时长统计（转换为“几小时几分钟”）
           int totalFocusSeconds = 0;
           for (final record in taskData.focusRecords) {
             if (record.date.isAfter(startDate.subtract(const Duration(seconds: 1))) &&
@@ -97,23 +96,23 @@ class _StatisticsPageState extends State<StatisticsPage> {
             }
           }
           final focusMinutes = totalFocusSeconds ~/ 60;
-          final focusHours = (focusMinutes / 60).toStringAsFixed(1);
+          final hours = focusMinutes ~/ 60;
+          final mins = focusMinutes % 60;
+          String focusDurationText;
+          if (hours > 0 && mins > 0) {
+            focusDurationText = '$hours小时$mins分钟';
+          } else if (hours > 0) {
+            focusDurationText = '$hours小时';
+          } else {
+            focusDurationText = '$mins分钟';
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSectionTitle('每日完成趋势 (共 $doneCount 件)'),
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 180,
-                  width: double.infinity,
-                  child: CustomPaint(painter: LineChartPainter(lineData, lineLabels)),
-                ),
-                const SizedBox(height: 30),
-
-                // 🔴 专注时长汇总卡片（极简无蓝框设计）
+                // 1. 专注总时长放在最顶部（几小时几分钟格式）
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
@@ -133,7 +132,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                             children: [
                               Text('$selectedRange专注总时长', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                               const SizedBox(height: 2),
-                              Text('$focusHours 小时 ($focusMinutes 分钟)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                              Text(focusDurationText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
                             ],
                           ),
                         ],
@@ -144,7 +143,58 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 ),
                 const SizedBox(height: 30),
 
-                // 完成率与清单分布
+                // 2. 链的长度统计（放在事件完成率和清单分布的上方）
+                _buildSectionTitle('链的长度'),
+                const SizedBox(height: 14),
+                if (taskData.myChains.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    alignment: Alignment.center,
+                    child: const Text('暂无链记录', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  )
+                else
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: taskData.myChains.map((chain) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FBFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.link, size: 16, color: Colors.lightBlue),
+                            const SizedBox(width: 6),
+                            Text(chain.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.lightBlue.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '#${chain.count}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.lightBlue.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                const SizedBox(height: 30),
+
+                // 3. 事件完成率与清单分布
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -224,7 +274,17 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 ),
                 const SizedBox(height: 35),
 
-                // 逾期统计指标与清单逾期分布 (左右并排，范围严格联动)
+                // 4. 每日完成趋势
+                _buildSectionTitle('每日完成趋势 (共 $doneCount 件)'),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 180,
+                  width: double.infinity,
+                  child: CustomPaint(painter: LineChartPainter(lineData, lineLabels)),
+                ),
+                const SizedBox(height: 35),
+
+                // 5. 逾期统计指标与清单逾期分布
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

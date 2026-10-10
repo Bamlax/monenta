@@ -24,14 +24,11 @@ class RepeatConfig {
         'endDate': endDate?.toIso8601String(),
       };
 
-  static RepeatConfig fromJson(Map<String, dynamic> json) =>
-      RepeatConfig(
+  static RepeatConfig fromJson(Map<String, dynamic> json) => RepeatConfig(
         groupId: json['groupId'],
         interval: json['interval'],
         unit: json['unit'],
-        endDate: json['endDate'] != null
-            ? DateTime.parse(json['endDate'])
-            : null,
+        endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
       );
 }
 
@@ -49,10 +46,33 @@ class TaskList {
         'color': color.value,
       };
 
-  static TaskList fromJson(Map<String, dynamic> json) =>
-      TaskList(
+  static TaskList fromJson(Map<String, dynamic> json) => TaskList(
         name: json['name'],
         color: Color(json['color']),
+      );
+}
+
+class TaskChain {
+  String id;
+  String name;
+  int count;
+
+  TaskChain({
+    required this.id,
+    required this.name,
+    this.count = 1,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'count': count,
+      };
+
+  static TaskChain fromJson(Map<String, dynamic> json) => TaskChain(
+        id: json['id'],
+        name: json['name'],
+        count: json['count'] ?? 1,
       );
 }
 
@@ -107,6 +127,19 @@ class Task {
   String? timeBucket;
   int focusDurationSeconds;
 
+  String? chainId;
+  int? chainNumber;
+  bool isFailed;
+  String? failRemark;
+
+  String timerMode; // 'countdown' | 'countup'
+  int countdownMinutes;
+  int prepMinutes;
+
+  // 暂停控制配置
+  bool allowPause;
+  int pauseLimitMinutes;
+
   Task({
     required this.id,
     required this.title,
@@ -125,6 +158,15 @@ class Task {
     this.overdueCount = 0,
     this.timeBucket,
     this.focusDurationSeconds = 0,
+    this.chainId,
+    this.chainNumber,
+    this.isFailed = false,
+    this.failRemark,
+    this.timerMode = 'countdown',
+    this.countdownMinutes = 25,
+    this.prepMinutes = 0,
+    this.allowPause = false,
+    this.pauseLimitMinutes = 5,
   });
 
   Task copyWith({
@@ -138,6 +180,16 @@ class Task {
     String? timeBucket,
     bool clearTimeBucket = false,
     int? focusDurationSeconds,
+    String? chainId,
+    bool clearChainId = false,
+    int? chainNumber,
+    bool? isFailed,
+    String? failRemark,
+    String? timerMode,
+    int? countdownMinutes,
+    int? prepMinutes,
+    bool? allowPause,
+    int? pauseLimitMinutes,
   }) {
     return Task(
       id: id ?? this.id,
@@ -157,6 +209,15 @@ class Task {
       overdueCount: overdueCount ?? this.overdueCount,
       timeBucket: clearTimeBucket ? null : (timeBucket ?? this.timeBucket),
       focusDurationSeconds: focusDurationSeconds ?? this.focusDurationSeconds,
+      chainId: clearChainId ? null : (chainId ?? this.chainId),
+      chainNumber: chainNumber ?? this.chainNumber,
+      isFailed: isFailed ?? this.isFailed,
+      failRemark: failRemark ?? this.failRemark,
+      timerMode: timerMode ?? this.timerMode,
+      countdownMinutes: countdownMinutes ?? this.countdownMinutes,
+      prepMinutes: prepMinutes ?? this.prepMinutes,
+      allowPause: allowPause ?? this.allowPause,
+      pauseLimitMinutes: pauseLimitMinutes ?? this.pauseLimitMinutes,
     );
   }
 
@@ -179,6 +240,15 @@ class Task {
         'overdueCount': overdueCount,
         'timeBucket': timeBucket,
         'focusDurationSeconds': focusDurationSeconds,
+        'chainId': chainId,
+        'chainNumber': chainNumber,
+        'isFailed': isFailed,
+        'failRemark': failRemark,
+        'timerMode': timerMode,
+        'countdownMinutes': countdownMinutes,
+        'prepMinutes': prepMinutes,
+        'allowPause': allowPause,
+        'pauseLimitMinutes': pauseLimitMinutes,
       };
 
   static Task fromJson(Map<String, dynamic> json) => Task(
@@ -187,10 +257,7 @@ class Task {
         description: json['description'] ?? '',
         date: json['date'] != null ? DateTime.parse(json['date']) : null,
         time: json['timeHour'] != null
-            ? TimeOfDay(
-                hour: json['timeHour'],
-                minute: json['timeMinute'],
-              )
+            ? TimeOfDay(hour: json['timeHour'], minute: json['timeMinute'])
             : null,
         addToCalendar: json['addToCalendar'] ?? false,
         listName: json['listName'],
@@ -204,6 +271,15 @@ class Task {
         overdueCount: json['overdueCount'] ?? 0,
         timeBucket: json['timeBucket'],
         focusDurationSeconds: json['focusDurationSeconds'] ?? 0,
+        chainId: json['chainId'],
+        chainNumber: json['chainNumber'],
+        isFailed: json['isFailed'] ?? false,
+        failRemark: json['failRemark'],
+        timerMode: json['timerMode'] ?? 'countdown',
+        countdownMinutes: json['countdownMinutes'] ?? 25,
+        prepMinutes: json['prepMinutes'] ?? 0,
+        allowPause: json['allowPause'] ?? false,
+        pauseLimitMinutes: json['pauseLimitMinutes'] ?? 5,
       );
 }
 
@@ -213,6 +289,7 @@ class TaskData extends ChangeNotifier {
   final List<Task> _tasks = [];
   final List<TaskList> myLists = [];
   final List<String> myTags = [];
+  final List<TaskChain> myChains = [];
   final List<FocusRecord> focusRecords = [];
 
   Task? currentFocusTask;
@@ -223,15 +300,34 @@ class TaskData extends ChangeNotifier {
   bool enableTimeBuckets = false;
   List<String> timeBuckets = ['上午', '中午', '下午', '晚上'];
 
+  String defaultTimerMode = 'countdown';
+  int defaultCountdownMinutes = 25;
+  int defaultPrepMinutes = 0;
+  bool defaultAllowPause = false;
+  int defaultPauseLimitMinutes = 5;
+
   Future<void> loadData() async {
     final prefs = await SharedPreferences.getInstance();
     enableHolidays = prefs.getBool('monenta_enable_holidays') ?? false;
     enableTimeBuckets = prefs.getBool('monenta_enable_time_buckets') ?? false;
 
+    defaultTimerMode = prefs.getString('monenta_def_timer_mode') ?? 'countdown';
+    defaultCountdownMinutes = prefs.getInt('monenta_def_countdown_mins') ?? 25;
+    defaultPrepMinutes = prefs.getInt('monenta_def_prep_mins') ?? 0;
+    defaultAllowPause = prefs.getBool('monenta_def_allow_pause') ?? false;
+    defaultPauseLimitMinutes = prefs.getInt('monenta_def_pause_limit_mins') ?? 5;
+
     final bucketsStr = prefs.getString('monenta_time_buckets');
     if (bucketsStr != null) {
       final List<dynamic> decoded = json.decode(bucketsStr);
       timeBuckets = decoded.map((e) => e.toString()).toList();
+    }
+
+    final chainsStr = prefs.getString('monenta_chains');
+    if (chainsStr != null) {
+      final Iterable c = json.decode(chainsStr);
+      myChains.clear();
+      myChains.addAll(List<TaskChain>.from(c.map((m) => TaskChain.fromJson(m))));
     }
 
     final listsStr = prefs.getString('monenta_lists');
@@ -273,31 +369,80 @@ class TaskData extends ChangeNotifier {
     await prefs.setBool('monenta_enable_time_buckets', enableTimeBuckets);
     await prefs.setString('monenta_time_buckets', json.encode(timeBuckets));
 
-    await prefs.setString(
-      'monenta_lists',
-      json.encode(myLists.map((e) => e.toJson()).toList()),
-    );
+    await prefs.setString('monenta_def_timer_mode', defaultTimerMode);
+    await prefs.setInt('monenta_def_countdown_mins', defaultCountdownMinutes);
+    await prefs.setInt('monenta_def_prep_mins', defaultPrepMinutes);
+    await prefs.setBool('monenta_def_allow_pause', defaultAllowPause);
+    await prefs.setInt('monenta_def_pause_limit_mins', defaultPauseLimitMinutes);
 
-    await prefs.setString(
-      'monenta_tags',
-      json.encode(myTags),
-    );
-
-    await prefs.setString(
-      'monenta_tasks',
-      json.encode(_tasks.map((e) => e.toJson()).toList()),
-    );
-
-    await prefs.setString(
-      'monenta_focus_records',
-      json.encode(focusRecords.map((e) => e.toJson()).toList()),
-    );
+    await prefs.setString('monenta_chains', json.encode(myChains.map((e) => e.toJson()).toList()));
+    await prefs.setString('monenta_lists', json.encode(myLists.map((e) => e.toJson()).toList()));
+    await prefs.setString('monenta_tags', json.encode(myTags));
+    await prefs.setString('monenta_tasks', json.encode(_tasks.map((e) => e.toJson()).toList()));
+    await prefs.setString('monenta_focus_records', json.encode(focusRecords.map((e) => e.toJson()).toList()));
   }
 
   @override
   void notifyListeners() {
     super.notifyListeners();
     saveData();
+  }
+
+  void updateDefaultFocusSettings({
+    String? mode,
+    int? countdownMins,
+    int? prepMins,
+    bool? allowPause,
+    int? pauseLimitMins,
+  }) {
+    if (mode != null) defaultTimerMode = mode;
+    if (countdownMins != null) defaultCountdownMinutes = countdownMins;
+    if (prepMins != null) defaultPrepMinutes = prepMins;
+    if (allowPause != null) defaultAllowPause = allowPause;
+    if (pauseLimitMins != null) defaultPauseLimitMinutes = pauseLimitMins;
+    notifyListeners();
+  }
+
+  TaskChain? getChain(String? id) {
+    if (id == null) return null;
+    try {
+      return myChains.firstWhere((c) => c.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  TaskChain addChain(String name) {
+    final existing = myChains.where((c) => c.name == name.trim()).toList();
+    if (existing.isNotEmpty) return existing.first;
+    final newChain = TaskChain(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: name.trim(),
+      count: 1,
+    );
+    myChains.add(newChain);
+    notifyListeners();
+    return newChain;
+  }
+
+  void editChain(String id, String newName) {
+    if (newName.trim().isEmpty) return;
+    final index = myChains.indexWhere((c) => c.id == id);
+    if (index != -1) {
+      myChains[index].name = newName.trim();
+      notifyListeners();
+    }
+  }
+
+  void deleteChain(String id) {
+    myChains.removeWhere((c) => c.id == id);
+    for (final t in _tasks) {
+      if (t.chainId == id) {
+        t.chainId = null;
+        t.chainNumber = null;
+      }
+    }
+    notifyListeners();
   }
 
   void addFocusRecord(int seconds, {String? taskId}) {
@@ -358,9 +503,7 @@ class TaskData extends ChangeNotifier {
   }
 
   void reorderTimeBuckets(int oldIndex, int newIndex) {
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
+    if (oldIndex < newIndex) newIndex -= 1;
     final item = timeBuckets.removeAt(oldIndex);
     timeBuckets.insert(newIndex, item);
     notifyListeners();
@@ -396,8 +539,7 @@ class TaskData extends ChangeNotifier {
     bool changed = false;
     for (final year in years) {
       final holidays = await HolidayService.fetchHolidaysForYear(year);
-      final existingIds =
-          _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
+      final existingIds = _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
 
       for (final h in holidays) {
         if (!existingIds.contains(h.id)) {
@@ -415,8 +557,7 @@ class TaskData extends ChangeNotifier {
   Future<void> ensureHolidaysForYear(int year) async {
     if (!enableHolidays) return;
     final holidays = await HolidayService.fetchHolidaysForYear(year);
-    final existingIds =
-        _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
+    final existingIds = _tasks.where((t) => t.id.startsWith('holiday_')).map((t) => t.id).toSet();
 
     bool changed = false;
     for (final h in holidays) {
@@ -449,8 +590,7 @@ class TaskData extends ChangeNotifier {
 
   List<Task> get allTasks => _tasks.toList();
 
-  List<Task> get unfinishedTasks =>
-      _tasks.where((t) => !t.isDone && !t.isEvent).toList();
+  List<Task> get unfinishedTasks => _tasks.where((t) => !t.isDone && !t.isEvent).toList();
 
   void addList(String name, Color color) {
     if (!myLists.any((l) => l.name == name)) {
@@ -562,11 +702,7 @@ class TaskData extends ChangeNotifier {
       DateTime startDay = DateTime(startDate.year, startDate.month, startDate.day);
       DateTime? pureEndDay;
       if (repeat.endDate != null) {
-        pureEndDay = DateTime(
-          repeat.endDate!.year,
-          repeat.endDate!.month,
-          repeat.endDate!.day,
-        );
+        pureEndDay = DateTime(repeat.endDate!.year, repeat.endDate!.month, repeat.endDate!.day);
       }
 
       int count = 0;
@@ -575,37 +711,19 @@ class TaskData extends ChangeNotifier {
       while (count < maxLimit) {
         DateTime targetDay;
         if (repeat.unit == 'day') {
-          targetDay = DateTime(
-            startDay.year,
-            startDay.month,
-            startDay.day + count * repeat.interval,
-          );
+          targetDay = DateTime(startDay.year, startDay.month, startDay.day + count * repeat.interval);
         } else if (repeat.unit == 'week') {
-          targetDay = DateTime(
-            startDay.year,
-            startDay.month,
-            startDay.day + count * 7 * repeat.interval,
-          );
+          targetDay = DateTime(startDay.year, startDay.month, startDay.day + count * 7 * repeat.interval);
         } else if (repeat.unit == 'month') {
-          targetDay = DateTime(
-            startDay.year,
-            startDay.month + count * repeat.interval,
-            startDay.day,
-          );
+          targetDay = DateTime(startDay.year, startDay.month + count * repeat.interval, startDay.day);
         } else if (repeat.unit == 'year') {
-          targetDay = DateTime(
-            startDay.year + count * repeat.interval,
-            startDay.month,
-            startDay.day,
-          );
+          targetDay = DateTime(startDay.year + count * repeat.interval, startDay.month, startDay.day);
         } else {
           targetDay = DateTime(startDay.year, startDay.month, startDay.day + count);
         }
 
         DateTime pureTargetDay = DateTime(targetDay.year, targetDay.month, targetDay.day);
-        if (pureEndDay != null && pureTargetDay.isAfter(pureEndDay)) {
-          break;
-        }
+        if (pureEndDay != null && pureTargetDay.isAfter(pureEndDay)) break;
 
         DateTime finalDateTime = DateTime(
           targetDay.year,
@@ -627,33 +745,17 @@ class TaskData extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 🔴 核心：严格实现逾期三原则判定
   bool _checkIsOverdue(Task task, DateTime? newDate) {
-    // 排除事件、只读节假日、已完成待办、原本无日期的待办
-    if (task.isEvent || task.isDone || task.isReadOnly || task.date == null) {
-      return false;
-    }
+    if (task.isEvent || task.isDone || task.isReadOnly || task.date == null) return false;
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final oldDay = DateTime(task.date!.year, task.date!.month, task.date!.day);
 
-    // 规则 3：把有具体日期的待办移到收件箱 (newDate == null) -> 逾期
-    if (newDate == null) {
-      return true;
-    }
-
+    if (newDate == null) return true;
     final targetDay = DateTime(newDate.year, newDate.month, newDate.day);
-
-    // 规则 1：今天的待办推迟到今天之后 -> 逾期
-    if (oldDay.isAtSameMomentAs(today) && targetDay.isAfter(today)) {
-      return true;
-    }
-
-    // 规则 2：过去未完成的待办重新安排在今天或今天之后 -> 逾期
-    if (oldDay.isBefore(today) && !targetDay.isBefore(today)) {
-      return true;
-    }
+    if (oldDay.isAtSameMomentAs(today) && targetDay.isAfter(today)) return true;
+    if (oldDay.isBefore(today) && !targetDay.isBefore(today)) return true;
 
     return false;
   }
@@ -686,6 +788,13 @@ class TaskData extends ChangeNotifier {
     bool skipOverdueCount = false,
     String? newTimeBucket,
     bool clearTimeBucket = false,
+    String? newChainId,
+    bool clearChainId = false,
+    String? newTimerMode,
+    int? newCountdownMinutes,
+    int? newPrepMinutes,
+    bool? newAllowPause,
+    int? newPauseLimitMinutes,
   }) {
     final taskIndex = _tasks.indexWhere((t) => t.id == id);
     if (taskIndex == -1) return;
@@ -698,10 +807,7 @@ class TaskData extends ChangeNotifier {
 
     if (updateFuture && task.repeatGroupId != null) {
       final relatedTasks = _tasks.where(
-        (t) =>
-            t.repeatGroupId == task.repeatGroupId &&
-            t.date != null &&
-            !t.date!.isBefore(task.date!),
+        (t) => t.repeatGroupId == task.repeatGroupId && t.date != null && !t.date!.isBefore(task.date!),
       ).toList();
 
       for (final r in relatedTasks) {
@@ -716,6 +822,19 @@ class TaskData extends ChangeNotifier {
         } else if (newTimeBucket != null) {
           r.timeBucket = newTimeBucket;
         }
+
+        if (clearChainId) {
+          r.chainId = null;
+          r.chainNumber = null;
+        } else if (newChainId != null) {
+          r.chainId = newChainId;
+        }
+
+        if (newTimerMode != null) r.timerMode = newTimerMode;
+        if (newCountdownMinutes != null) r.countdownMinutes = newCountdownMinutes;
+        if (newPrepMinutes != null) r.prepMinutes = newPrepMinutes;
+        if (newAllowPause != null) r.allowPause = newAllowPause;
+        if (newPauseLimitMinutes != null) r.pauseLimitMinutes = newPauseLimitMinutes;
 
         if (newIsEvent != null) {
           r.isEvent = newIsEvent;
@@ -744,6 +863,19 @@ class TaskData extends ChangeNotifier {
         task.timeBucket = newTimeBucket;
       }
 
+      if (clearChainId) {
+        task.chainId = null;
+        task.chainNumber = null;
+      } else if (newChainId != null) {
+        task.chainId = newChainId;
+      }
+
+      if (newTimerMode != null) task.timerMode = newTimerMode;
+      if (newCountdownMinutes != null) task.countdownMinutes = newCountdownMinutes;
+      if (newPrepMinutes != null) task.prepMinutes = newPrepMinutes;
+      if (newAllowPause != null) task.allowPause = newAllowPause;
+      if (newPauseLimitMinutes != null) task.pauseLimitMinutes = newPauseLimitMinutes;
+
       if (newIsEvent != null) {
         task.isEvent = newIsEvent;
         if (task.isEvent) {
@@ -763,10 +895,7 @@ class TaskData extends ChangeNotifier {
 
     if (deleteAllFuture && task.repeatGroupId != null) {
       _tasks.removeWhere(
-        (t) =>
-            t.repeatGroupId == task.repeatGroupId &&
-            t.date != null &&
-            !t.date!.isBefore(task.date!),
+        (t) => t.repeatGroupId == task.repeatGroupId && t.date != null && !t.date!.isBefore(task.date!),
       );
     } else {
       _tasks.remove(task);
@@ -779,10 +908,7 @@ class TaskData extends ChangeNotifier {
 
     if (pinAllFuture && task.repeatGroupId != null) {
       final related = _tasks.where(
-        (t) =>
-            t.repeatGroupId == task.repeatGroupId &&
-            t.date != null &&
-            !t.date!.isBefore(task.date!),
+        (t) => t.repeatGroupId == task.repeatGroupId && t.date != null && !t.date!.isBefore(task.date!),
       ).toList();
 
       for (final r in related) {
@@ -799,12 +925,8 @@ class TaskData extends ChangeNotifier {
 
     if (toTop) {
       int firstIdx = _tasks.indexWhere(
-        (t) =>
-            t.date?.year == task.date?.year &&
-            t.date?.month == task.date?.month &&
-            t.date?.day == task.date?.day,
+        (t) => t.date?.year == task.date?.year && t.date?.month == task.date?.month && t.date?.day == task.date?.day,
       );
-
       if (firstIdx != -1) {
         _tasks.insert(firstIdx, task);
       } else {
@@ -812,12 +934,8 @@ class TaskData extends ChangeNotifier {
       }
     } else {
       int lastIdx = _tasks.lastIndexWhere(
-        (t) =>
-            t.date?.year == task.date?.year &&
-            t.date?.month == task.date?.month &&
-            t.date?.day == task.date?.day,
+        (t) => t.date?.year == task.date?.year && t.date?.month == task.date?.month && t.date?.day == task.date?.day,
       );
-
       if (lastIdx != -1) {
         _tasks.insert(lastIdx + 1, task);
       } else {
@@ -830,31 +948,73 @@ class TaskData extends ChangeNotifier {
     final task = _tasks.firstWhere((t) => t.id == id);
     if (task.isEvent || task.isReadOnly) return;
 
+    task.isFailed = false;
     task.isDone = !task.isDone;
+
     if (task.isDone) {
       task.doneDate = DateTime.now();
       if (currentFocusTask?.id == id) {
         currentFocusTask = null;
       }
+
+      if (task.chainId != null) {
+        final chain = getChain(task.chainId);
+        if (chain != null) {
+          task.chainNumber = chain.count;
+          chain.count += 1;
+        }
+      }
     } else {
       task.doneDate = null;
+      if (task.chainId != null) {
+        final chain = getChain(task.chainId);
+        if (chain != null && task.chainNumber != null) {
+          if (chain.count > 1 && task.chainNumber == chain.count - 1) {
+            chain.count -= 1;
+          }
+        }
+        task.chainNumber = null;
+      }
     }
+    notifyListeners();
+  }
+
+  void markTaskIncomplete(String id, String remark) {
+    final task = _tasks.firstWhere((t) => t.id == id);
+    if (task.isEvent || task.isReadOnly) return;
+
+    task.isDone = false;
+    task.doneDate = null;
+    task.isFailed = true;
+    task.failRemark = remark;
+    task.chainNumber = null;
+
+    if (task.chainId != null) {
+      final chain = getChain(task.chainId);
+      if (chain != null) {
+        chain.count = 1;
+      }
+    }
+    notifyListeners();
+  }
+
+  void clearTaskFailure(String id) {
+    final task = _tasks.firstWhere((t) => t.id == id);
+    task.isFailed = false;
+    task.failRemark = null;
     notifyListeners();
   }
 
   void updateTaskList(String id, String? newList) {
     final task = _tasks.firstWhere((t) => t.id == id);
     if (task.isReadOnly) return;
-
     task.listName = newList;
     notifyListeners();
   }
 
   void reorderInboxTasks(int oldIndex, int newIndex) {
     final inboxList = inboxTasks;
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
+    if (oldIndex < newIndex) newIndex -= 1;
     final task = inboxList[oldIndex];
     _tasks.remove(task);
 
@@ -868,9 +1028,7 @@ class TaskData extends ChangeNotifier {
 
   void reorderDailyTasks(DateTime date, int oldIndex, int newIndex) {
     final dailyList = getTasksByDate(date);
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
+    if (oldIndex < newIndex) newIndex -= 1;
     final task = dailyList[oldIndex];
     _tasks.remove(task);
 
@@ -885,14 +1043,9 @@ class TaskData extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 🔴 解决分栏内排序被定死的问题：支持同分栏内调整顺序以及跨分栏拖动
   void reorderBucketTasks(DateTime date, Task movedTask, String? targetBucket, Task? anchorTask, bool insertAfter) {
     if (movedTask.isReadOnly) return;
-
-    // 1. 更新分栏归属
     movedTask.timeBucket = targetBucket;
-
-    // 2. 在底层全局 _tasks 列表中调整其实际位置
     _tasks.remove(movedTask);
 
     if (anchorTask != null) {
@@ -903,20 +1056,14 @@ class TaskData extends ChangeNotifier {
         _tasks.add(movedTask);
       }
     } else {
-      // 如果没有锚点任务（比如该分栏为空，拖到标题正下方），找该天该分栏的末尾或该天任务末尾插入
       int lastDayIdx = _tasks.lastIndexWhere((t) =>
-          t.date != null &&
-          t.date!.year == date.year &&
-          t.date!.month == date.month &&
-          t.date!.day == date.day);
-
+          t.date != null && t.date!.year == date.year && t.date!.month == date.month && t.date!.day == date.day);
       if (lastDayIdx != -1) {
         _tasks.insert(lastDayIdx + 1, movedTask);
       } else {
         _tasks.add(movedTask);
       }
     }
-
     notifyListeners();
   }
 

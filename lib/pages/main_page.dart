@@ -3,8 +3,9 @@ import '../models/task_data.dart';
 import 'home_page.dart';
 import 'calendar_page.dart';
 import 'focus_page.dart';
+import 'chain_page.dart'; // 引入新建的链页面
 import 'statistics_page.dart';
-import 'settings_page.dart'; // 🔴 引入新建的设置页面
+import 'settings_page.dart';
 
 class MainPage extends StatelessWidget {
   const MainPage({super.key});
@@ -15,8 +16,9 @@ class MainPage extends StatelessWidget {
       const HomePage(),
       const CalendarPage(),
       const FocusPage(), 
+      const ChainPage(), // 插入在专注与统计之间 (索引 3)
       const StatisticsPage(), 
-      const SettingsPage(), // 🔴 将第五个页面替换为真实的设置页
+      const SettingsPage(),
     ];
 
     return ValueListenableBuilder<int>(
@@ -34,9 +36,10 @@ class MainPage extends StatelessWidget {
             items: const [
               BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
               BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
-              BottomNavigationBarItem(icon: Icon(Icons.local_fire_department), label: ''), 
+              BottomNavigationBarItem(icon: Icon(Icons.timer_outlined), label: ''), 
+              BottomNavigationBarItem(icon: Icon(Icons.link), label: ''), // 链图标
               BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: ''), 
-              BottomNavigationBarItem(icon: Icon(Icons.settings), label: ''), // 设置页图标
+              BottomNavigationBarItem(icon: Icon(Icons.settings), label: ''),
             ],
           ),
         );

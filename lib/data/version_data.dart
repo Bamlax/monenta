@@ -13,6 +13,15 @@ class VersionRecord {
 // 🔴 所有的版本更新记录存在这里
 const List<VersionRecord> versionHistory = [
     VersionRecord(
+    version: 'v2.0.0',
+    date: '2026-10-10',
+    updates: [
+      '新增：链的功能',
+      '新增：专注界面的更新以及预约功能',
+      '优化：统计界面的UI和数据展示',
+    ],
+  ),
+    VersionRecord(
     version: 'v1.5.2',
     date: '2026-09-15',
     updates: [

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../models/task_data.dart';
+import 'live_update_channel.dart';
 
 enum FocusPhase {
   idle,
@@ -40,11 +40,10 @@ class FocusTimerService extends ChangeNotifier {
 
   bool _allowPause = false;
   int _pauseLimitMinutes = 5;
-  int _pauseRemainingSeconds = 5 * 60; // 暂停可用剩余秒数
+  int _pauseRemainingSeconds = 5 * 60;
 
   Timer? _ticker;
   DateTime? _lastTimestamp;
-  bool _initialized = false;
 
   FocusPhase get phase => _phase;
   FocusTimerMode get mode => _mode;
@@ -76,12 +75,87 @@ class FocusTimerService extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    if (_initialized) return;
-    _initialized = true;
     notifyListeners();
   }
 
-  // 必须绑定待办任务启动
+  // 同步原生流体云/实时活动：胶囊明确显示“预约中”、“计时中”、“暂停中”
+  void _syncLiveUpdateToSystem() {
+    if (_status == FocusTimerStatus.idle || _taskId == null) {
+      LiveUpdateChannel.dismiss();
+      return;
+    }
+
+    final nowEpoch = DateTime.now().millisecondsSinceEpoch;
+
+    // 1. 暂停状态：胶囊显示“暂停中”，卡片保持倒计可用时间
+    if (_status == FocusTimerStatus.paused) {
+      final pauseDeadlineEpoch = nowEpoch + (_pauseRemainingSeconds * 1000);
+      LiveUpdateChannel.show(
+        title: _taskTitle,
+        text: '暂停中 · 剩余可用暂停: ${formatSeconds(_pauseRemainingSeconds)}',
+        shortText: '暂停中',
+        whenTime: pauseDeadlineEpoch,
+        useChronometer: true,
+        isCountdown: true,
+      );
+      return;
+    }
+
+    // 2. 预约阶段：胶囊显示“预约中”，展开卡片保持预约倒计时走表
+    if (_phase == FocusPhase.prep) {
+      final deadlineEpoch = nowEpoch + (_prepSeconds * 1000);
+      LiveUpdateChannel.show(
+        title: _taskTitle,
+        text: '预约准备中 · 倒计时结束后开启专注',
+        shortText: '预约中',
+        whenTime: deadlineEpoch,
+        useChronometer: true,
+        isCountdown: true,
+        isReservation: true,
+        durationSeconds: _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0,
+        isTaskCountdown: _mode == FocusTimerMode.countdown,
+      );
+      return;
+    }
+
+    // 3. 超时阶段：胶囊显示“计时中”
+    if (_phase == FocusPhase.overtime) {
+      final plannedEndEpoch = nowEpoch - (_overtimeSeconds * 1000);
+      LiveUpdateChannel.show(
+        title: '超时: $_taskTitle',
+        text: '已超时 · 正在记录额外投入',
+        shortText: '计时中',
+        whenTime: plannedEndEpoch,
+        useChronometer: true,
+        isCountdown: false,
+      );
+      return;
+    }
+
+    // 4. 正式专注阶段（倒计时与正计时）：胶囊均显示“计时中”
+    if (_mode == FocusTimerMode.countdown) {
+      final deadlineEpoch = nowEpoch + (_formalSeconds * 1000);
+      LiveUpdateChannel.show(
+        title: _taskTitle,
+        text: '正式专注倒计时中',
+        shortText: '计时中',
+        whenTime: deadlineEpoch,
+        useChronometer: true,
+        isCountdown: true,
+      );
+    } else {
+      final startEpoch = nowEpoch - (_formalSeconds * 1000);
+      LiveUpdateChannel.show(
+        title: _taskTitle,
+        text: '正计时专注中',
+        shortText: '计时中',
+        whenTime: startEpoch,
+        useChronometer: true,
+        isCountdown: false,
+      );
+    }
+  }
+
   Future<void> startTaskTimer(Task task) async {
     _stopTicker();
     _taskId = task.id;
@@ -110,12 +184,11 @@ class FocusTimerService extends ChangeNotifier {
     _startTicker();
     notifyListeners();
 
-    await _startLiveActivity();
+    _syncLiveUpdateToSystem();
   }
 
   void start() {
-    if (_taskId == null) return;
-    if (isRunning) return;
+    if (_taskId == null || isRunning) return;
 
     if (_phase == FocusPhase.idle) {
       _phase = FocusPhase.formal;
@@ -125,20 +198,19 @@ class FocusTimerService extends ChangeNotifier {
     _lastTimestamp = DateTime.now();
     _startTicker();
     notifyListeners();
-    _startLiveActivity();
+
+    _syncLiveUpdateToSystem();
   }
 
-  // 预约阶段禁止暂停；非可暂停待办禁止暂停
   void pause() {
-    if (!isRunning) return;
-    if (_phase == FocusPhase.prep) return; // 预约开始之后不能暂停
-    if (!_allowPause) return; // 不可暂停的待办只能一直计时
+    if (!isRunning || _phase == FocusPhase.prep || !_allowPause) return;
 
     _tick();
     _lastTimestamp = DateTime.now();
     _status = FocusTimerStatus.paused;
     notifyListeners();
-    _updateLiveActivityNotification();
+
+    _syncLiveUpdateToSystem();
   }
 
   void stop() {
@@ -152,7 +224,8 @@ class FocusTimerService extends ChangeNotifier {
     _prepSeconds = 0;
     _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
     notifyListeners();
-    FlutterForegroundTask.stopService();
+
+    LiveUpdateChannel.dismiss();
   }
 
   void skipPrep() {
@@ -162,7 +235,8 @@ class FocusTimerService extends ChangeNotifier {
     _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
     _lastTimestamp = DateTime.now();
     notifyListeners();
-    _updateLiveActivityNotification();
+
+    _syncLiveUpdateToSystem();
   }
 
   Future<void> completeTaskAndFinishFocus() async {
@@ -186,7 +260,8 @@ class FocusTimerService extends ChangeNotifier {
     _prepSeconds = 0;
     _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
     notifyListeners();
-    FlutterForegroundTask.stopService();
+
+    LiveUpdateChannel.dismiss();
   }
 
   void _saveSession() {
@@ -215,14 +290,12 @@ class FocusTimerService extends ChangeNotifier {
 
     _lastTimestamp = _lastTimestamp!.add(Duration(seconds: elapsed));
 
-    // 暂停状态下：倒计可用暂停剩余时间
     if (_status == FocusTimerStatus.paused) {
       if (_allowPause && _pauseRemainingSeconds > 0) {
         _pauseRemainingSeconds -= elapsed;
         if (_pauseRemainingSeconds < 0) _pauseRemainingSeconds = 0;
       }
       notifyListeners();
-      _updateLiveActivityNotification();
       return;
     }
 
@@ -231,9 +304,11 @@ class FocusTimerService extends ChangeNotifier {
     if (_phase == FocusPhase.prep) {
       _prepSeconds -= elapsed;
       if (_prepSeconds <= 0) {
+        // 预约归零，无缝切入正式专注，胶囊从“预约中”切换为“计时中”
         _phase = FocusPhase.formal;
         _prepSeconds = 0;
         _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
+        _syncLiveUpdateToSystem();
       }
     } else if (_phase == FocusPhase.formal) {
       _totalFocusedSeconds += elapsed;
@@ -243,6 +318,7 @@ class FocusTimerService extends ChangeNotifier {
           _phase = FocusPhase.overtime;
           _formalSeconds = 0;
           _overtimeSeconds = 0;
+          _syncLiveUpdateToSystem();
         }
       } else {
         _formalSeconds += elapsed;
@@ -253,57 +329,6 @@ class FocusTimerService extends ChangeNotifier {
     }
 
     notifyListeners();
-    _updateLiveActivityNotification();
-  }
-
-  // 申请实时活动通知权限并启动常驻通知
-  Future<void> _startLiveActivity() async {
-    final perm = await FlutterForegroundTask.checkNotificationPermission();
-    if (perm != NotificationPermission.granted) {
-      await FlutterForegroundTask.requestNotificationPermission();
-    }
-
-    if (await FlutterForegroundTask.isRunningService) return;
-
-    String initialTitle = 'Monenta · 实时活动';
-    String initialText = _phase == FocusPhase.prep
-        ? '预约准备中: ${formatSeconds(_prepSeconds)} · $_taskTitle'
-        : '${formatSeconds(displaySeconds)} · $_taskTitle';
-
-    await FlutterForegroundTask.startService(
-      serviceId: 1001,
-      serviceTypes: const [ForegroundServiceTypes.dataSync],
-      notificationTitle: initialTitle,
-      notificationText: initialText,
-      notificationButtons: const [], // 纯净实时活动卡片，无常驻按钮
-      notificationInitialRoute: '/',
-      callback: startCallback,
-    );
-  }
-
-  void _updateLiveActivityNotification() {
-    FlutterForegroundTask.isRunningService.then((running) {
-      if (!running) return;
-
-      String title = 'Monenta · 实时活动';
-      String text = '';
-
-      if (_status == FocusTimerStatus.paused) {
-        title = 'Monenta · 实时活动 (暂停中)';
-        text = '剩余暂停时间: ${formatSeconds(_pauseRemainingSeconds)} · $_taskTitle';
-      } else if (_phase == FocusPhase.prep) {
-        text = '预约准备中: ${formatSeconds(_prepSeconds)} · $_taskTitle';
-      } else if (_phase == FocusPhase.overtime) {
-        text = '已超时: +${formatSeconds(_overtimeSeconds)} · $_taskTitle';
-      } else {
-        text = '专注中: ${formatSeconds(_formalSeconds)} · $_taskTitle';
-      }
-
-      FlutterForegroundTask.updateService(
-        notificationTitle: title,
-        notificationText: text,
-      );
-    });
   }
 
   static String formatSeconds(int totalSeconds) {
@@ -323,20 +348,4 @@ class FocusTimerService extends ChangeNotifier {
     _stopTicker();
     super.dispose();
   }
-}
-
-@pragma('vm:entry-point')
-void startCallback() {
-  FlutterForegroundTask.setTaskHandler(MonentaLiveActivityTaskHandler());
-}
-
-class MonentaLiveActivityTaskHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
-  @override
-  void onRepeatEvent(DateTime timestamp) {}
-  @override
-  void onReceiveData(Object data) {}
-  @override
-  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
 }

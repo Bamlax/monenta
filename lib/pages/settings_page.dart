@@ -11,13 +11,14 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  // ----------------- 分栏管理 -----------------
   void _showAddBucketDialog() {
     final ctrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('新增分栏', style: TextStyle(color: Colors.lightBlue)),
-        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '如：清晨、夜间、深度专注等')),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '如：清晨、夜间等')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
           TextButton(
@@ -120,17 +121,14 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // ----------------- 链管理 -----------------
   void _showEditChainDialog(TaskChain chain) {
     final ctrl = TextEditingController(text: chain.name);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('修改链名称', style: TextStyle(color: Colors.lightBlue)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '输入新链名称'),
-        ),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '输入新链名称')),
         actions: [
           TextButton(
             onPressed: () {
@@ -217,6 +215,312 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // ----------------- 🔴 清单管理（支持长按自由排序，无排序图标） -----------------
+  void _showAddListDialog() {
+    final ctrl = TextEditingController();
+    Color selectedColor = Colors.blue;
+    final colors = [
+      Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red,
+      Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan,
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: colors.map((c) => GestureDetector(
+                  onTap: () => setDialogState(() => selectedColor = c),
+                  child: CircleAvatar(
+                    backgroundColor: c,
+                    radius: 14,
+                    child: selectedColor == c ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+            TextButton(
+              onPressed: () {
+                if (ctrl.text.trim().isNotEmpty) {
+                  taskData.addList(ctrl.text.trim(), selectedColor);
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditListDialog(TaskList list) {
+    final ctrl = TextEditingController(text: list.name);
+    Color selectedColor = list.color;
+    final colors = [
+      Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red,
+      Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan,
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('编辑清单', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: colors.map((c) => GestureDetector(
+                  onTap: () => setDialogState(() => selectedColor = c),
+                  child: CircleAvatar(
+                    backgroundColor: c,
+                    radius: 14,
+                    child: selectedColor == c ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                taskData.deleteList(list.name);
+                Navigator.pop(ctx);
+              },
+              child: const Text('删除清单', style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+            TextButton(
+              onPressed: () {
+                if (ctrl.text.trim().isNotEmpty) {
+                  taskData.editList(list.name, ctrl.text.trim(), selectedColor);
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showManageListsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => ListenableBuilder(
+          listenable: taskData,
+          builder: (context, _) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('清单管理', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('添加清单'),
+                        onPressed: _showAddListDialog,
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: taskData.myLists.isEmpty
+                      ? const Center(child: Text('暂无清单', style: TextStyle(color: Colors.grey)))
+                      : ReorderableListView.builder(
+                          scrollController: scrollController,
+                          buildDefaultDragHandles: false, // 🔴 不出现排序提示图标
+                          itemCount: taskData.myLists.length,
+                          onReorder: (oldIndex, newIndex) => taskData.reorderLists(oldIndex, newIndex),
+                          itemBuilder: (context, index) {
+                            final item = taskData.myLists[index];
+                            return ReorderableDelayedDragStartListener( // 🔴 长按自由排序
+                              key: ValueKey('manage_list_${item.name}_$index'),
+                              index: index,
+                              child: ListTile(
+                                leading: CircleAvatar(backgroundColor: item.color, radius: 8),
+                                title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.lightBlue),
+                                      onPressed: () => _showEditListDialog(item),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                                      onPressed: () => taskData.deleteList(item.name),
+                                    ),
+                                  ],
+                                ),
+                                onTap: () => _showEditListDialog(item),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ----------------- 🔴 标签管理（支持长按自由排序，无排序图标） -----------------
+  void _showAddTagDialog() {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('新建标签', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '标签名称')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) {
+                taskData.addTag(ctrl.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditTagDialog(String oldName) {
+    final ctrl = TextEditingController(text: oldName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('修改标签名称', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '输入新标签名称')),
+        actions: [
+          TextButton(
+            onPressed: () {
+              taskData.deleteTag(oldName);
+              Navigator.pop(ctx);
+            },
+            child: const Text('删除标签', style: TextStyle(color: Colors.red)),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) {
+                taskData.editTag(oldName, ctrl.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManageTagsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => ListenableBuilder(
+          listenable: taskData,
+          builder: (context, _) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('标签管理', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('添加标签'),
+                        onPressed: _showAddTagDialog,
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: taskData.myTags.isEmpty
+                      ? const Center(child: Text('暂无标签', style: TextStyle(color: Colors.grey)))
+                      : ReorderableListView.builder(
+                          scrollController: scrollController,
+                          buildDefaultDragHandles: false, // 🔴 不出现排序提示图标
+                          itemCount: taskData.myTags.length,
+                          onReorder: (oldIndex, newIndex) => taskData.reorderTags(oldIndex, newIndex),
+                          itemBuilder: (context, index) {
+                            final tag = taskData.myTags[index];
+                            return ReorderableDelayedDragStartListener( // 🔴 长按自由排序
+                              key: ValueKey('manage_tag_${tag}_$index'),
+                              index: index,
+                              child: ListTile(
+                                leading: const Icon(Icons.tag, color: Colors.lightBlue, size: 20),
+                                title: Text(tag, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.lightBlue),
+                                      onPressed: () => _showEditTagDialog(tag),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                                      onPressed: () => taskData.deleteTag(tag),
+                                    ),
+                                  ],
+                                ),
+                                onTap: () => _showEditTagDialog(tag),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _showSetDefaultMinutesDialog(String title, int currentVal, Function(int) onVal) {
     final ctrl = TextEditingController(text: '$currentVal');
     showDialog(
@@ -286,12 +590,32 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const Divider(height: 1, indent: 56),
 
-              // 链管理（已去掉可改名和删除提示）
+              // 链管理
               ListTile(
                 leading: const Icon(Icons.link, color: Colors.lightBlue),
                 title: const Text('链管理', style: TextStyle(fontSize: 15)),
                 trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
                 onTap: _showManageChainsModal,
+              ),
+
+              const Divider(height: 1, indent: 56),
+
+              // 🔴 新增：清单管理
+              ListTile(
+                leading: const Icon(Icons.format_list_bulleted, color: Colors.lightBlue),
+                title: const Text('清单管理', style: TextStyle(fontSize: 15)),
+                trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                onTap: _showManageListsModal,
+              ),
+
+              const Divider(height: 1, indent: 56),
+
+              // 🔴 新增：标签管理
+              ListTile(
+                leading: const Icon(Icons.tag, color: Colors.lightBlue),
+                title: const Text('标签管理', style: TextStyle(fontSize: 15)),
+                trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+                onTap: _showManageTagsModal,
               ),
 
               const Divider(height: 1, indent: 56),
@@ -330,7 +654,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
 
-              // 预约默认时长（蓝色字体）
+              // 预约默认时长
               ListTile(
                 contentPadding: const EdgeInsets.only(left: 72, right: 16),
                 title: const Text('预约默认时长', style: TextStyle(fontSize: 14)),
@@ -370,7 +694,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const Divider(height: 1, indent: 56),
 
-              // 法定节假日（已去掉副标题提示）
+              // 法定节假日
               SwitchListTile(
                 secondary: const Icon(Icons.celebration, color: Colors.lightBlue),
                 title: const Text('法定节假日', style: TextStyle(fontSize: 15)),

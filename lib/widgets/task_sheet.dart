@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:device_calendar/device_calendar.dart' as dc;
@@ -126,6 +127,220 @@ Future<String?> _createSystemCalendarEvent({
   }
 
   return saveResult.data;
+}
+
+// ---------------- 圆形色相调色盘绘制组件 ----------------
+class ColorWheelPainter extends CustomPainter {
+  final double brightness;
+  final double hue;
+  final double saturation;
+
+  ColorWheelPainter({
+    required this.brightness,
+    required this.hue,
+    required this.saturation,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // 1. 色相环渐变
+    const sweepGradient = SweepGradient(
+      colors: [
+        Color(0xFFFF0000),
+        Color(0xFFFFFF00),
+        Color(0xFF00FF00),
+        Color(0xFF00FFFF),
+        Color(0xFF0000FF),
+        Color(0xFFFF00FF),
+        Color(0xFFFF0000),
+      ],
+    );
+
+    final sweepPaint = Paint()
+      ..shader = sweepGradient.createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, sweepPaint);
+
+    // 2. 饱和度径向渐变（中心白 -> 边缘透明）
+    final radialGradient = RadialGradient(
+      colors: [
+        Colors.white.withOpacity(brightness.clamp(0.0, 1.0)),
+        Colors.transparent,
+      ],
+    );
+    final radialPaint = Paint()
+      ..shader = radialGradient.createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, radialPaint);
+
+    // 3. 明度黑色覆盖遮罩
+    if (brightness < 1.0) {
+      final blackPaint = Paint()
+        ..color = Colors.black.withOpacity((1.0 - brightness).clamp(0.0, 1.0))
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, radius, blackPaint);
+    }
+
+    // 4. 瞄准圆环指示器
+    final rad = hue * pi / 180;
+    final thumbDist = saturation * radius;
+    final thumbX = center.dx + thumbDist * cos(rad);
+    final thumbY = center.dy + thumbDist * sin(rad);
+    final thumbCenter = Offset(thumbX, thumbY);
+
+    final outerRing = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
+    final shadowRing = Paint()
+      ..color = Colors.black38
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    canvas.drawCircle(thumbCenter, 8, outerRing);
+    canvas.drawCircle(thumbCenter, 9, shadowRing);
+  }
+
+  @override
+  bool shouldRepaint(covariant ColorWheelPainter oldDelegate) =>
+      oldDelegate.brightness != brightness ||
+      oldDelegate.hue != hue ||
+      oldDelegate.saturation != saturation;
+}
+
+// ---------------- 圆形调色盘弹窗 ----------------
+void showCustomColorPicker(BuildContext context, Color initialColor, ValueChanged<Color> onColorPicked) {
+  final hsv = HSVColor.fromColor(initialColor);
+  double hue = hsv.hue;
+  double saturation = hsv.saturation;
+  double brightness = hsv.value.clamp(0.1, 1.0);
+
+  showDialog(
+    context: context,
+    builder: (c) => StatefulBuilder(
+      builder: (c, setPickerState) {
+        final currentColor = HSVColor.fromAHSV(1.0, hue, saturation, brightness).toColor();
+        const double wheelSize = 210.0;
+        const double radius = wheelSize / 2;
+
+        void handleTouch(Offset localPosition) {
+          final center = const Offset(radius, radius);
+          final dx = localPosition.dx - center.dx;
+          final dy = localPosition.dy - center.dy;
+          final dist = sqrt(dx * dx + dy * dy);
+
+          final sat = (dist / radius).clamp(0.0, 1.0);
+          double rad = atan2(dy, dx);
+          double deg = rad * 180 / pi;
+          if (deg < 0) deg += 360;
+
+          setPickerState(() {
+            hue = deg;
+            saturation = sat;
+          });
+        }
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('自定颜色', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 实时预览条
+              Container(
+                height: 34,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: currentColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300, width: 0.8),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // 圆形调色盘
+              GestureDetector(
+                onPanDown: (details) => handleTouch(details.localPosition),
+                onPanUpdate: (details) => handleTouch(details.localPosition),
+                child: SizedBox(
+                  width: wheelSize,
+                  height: wheelSize,
+                  child: CustomPaint(
+                    size: const Size(wheelSize, wheelSize),
+                    painter: ColorWheelPainter(
+                      brightness: brightness,
+                      hue: hue,
+                      saturation: saturation,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // 明度调节滑条
+              Row(
+                children: [
+                  const Text('明度', style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Slider(
+                      value: brightness,
+                      min: 0.1,
+                      max: 1.0,
+                      activeColor: Colors.lightBlue,
+                      onChanged: (v) => setPickerState(() => brightness = v),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('取消', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () {
+                onColorPicked(currentColor);
+                Navigator.pop(c);
+              },
+              child: const Text('确定', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+// 紧凑添加按钮（间距缩小至 2px）
+Widget buildCompactAddButton({required String label, required VoidCallback onTap}) {
+  return InkWell(
+    borderRadius: BorderRadius.circular(16),
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.lightBlue.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.lightBlue.shade200, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.add, size: 14, color: Colors.lightBlue),
+          const SizedBox(width: 2),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.lightBlue, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 void showTaskBottomSheet(
@@ -281,6 +496,104 @@ void showTaskBottomSheet(
         builder: (context, setModalState) {
           final currentChain = taskData.getChain(selectedChainId);
 
+          void showNewListDialog() {
+            final ctrl = TextEditingController();
+            Color selectedColor = Colors.blue;
+            final colors = [
+              Colors.blue, Colors.lightBlue, Colors.cyan, Colors.teal, Colors.green,
+              Colors.lightGreen, Colors.lime, Colors.amber, Colors.orange, Colors.deepOrange,
+              Colors.red, Colors.pink, Colors.purple, Colors.deepPurple, Colors.indigo,
+              Colors.blueGrey, Colors.brown, const Color(0xFF2E7D32), const Color(0xFF1565C0), const Color(0xFF6A1B9A)
+            ];
+
+            showDialog(
+              context: context,
+              builder: (ctx) => StatefulBuilder(
+                builder: (ctx, setDialogState) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          ...colors.map((c) => GestureDetector(
+                            onTap: () => setDialogState(() => selectedColor = c),
+                            child: CircleAvatar(
+                              backgroundColor: c,
+                              radius: 13,
+                              child: selectedColor == c ? const Icon(Icons.check, size: 15, color: Colors.white) : null,
+                            ),
+                          )),
+                          // 圆盘自定义调色器入口
+                          GestureDetector(
+                            onTap: () {
+                              showCustomColorPicker(context, selectedColor, (newCol) {
+                                setDialogState(() => selectedColor = newCol);
+                              });
+                            },
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.lightBlue.shade300, width: 1.2),
+                                color: Colors.lightBlue.shade50,
+                              ),
+                              child: const Icon(Icons.palette_outlined, size: 15, color: Colors.lightBlue),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+                    TextButton(
+                      onPressed: () {
+                        if (ctrl.text.trim().isNotEmpty) {
+                          taskData.addList(ctrl.text.trim(), selectedColor);
+                          setModalState(() => selectedList = ctrl.text.trim());
+                          Navigator.pop(ctx);
+                        }
+                      },
+                      child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          void showNewTagDialog() {
+            final ctrl = TextEditingController();
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('新建标签', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+                content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '标签名称')),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+                  TextButton(
+                    onPressed: () {
+                      if (ctrl.text.trim().isNotEmpty) {
+                        taskData.addTag(ctrl.text.trim());
+                        setModalState(() => selectedTags.add(ctrl.text.trim()));
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -292,7 +605,7 @@ void showTaskBottomSheet(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 顶部代办/事件切换 与 浅蓝风格链选择器
+                // 顶部代办/事件切换与链选择器
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -428,6 +741,7 @@ void showTaskBottomSheet(
                 const Divider(height: 1),
                 const SizedBox(height: 8),
 
+                // 清单栏：现有清单排在左侧，新建清单按钮排在最右侧
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -447,6 +761,7 @@ void showTaskBottomSheet(
                           ),
                         ),
                       ),
+                      buildCompactAddButton(label: '清单', onTap: showNewListDialog),
                     ],
                   ),
                 ),
@@ -618,7 +933,7 @@ void showTaskBottomSheet(
                   const SizedBox(height: 10),
                 ],
 
-                // 计时设定：去除外框，同一栏横向排布，最右侧放置允许暂停控件
+                // 计时设定行
                 if (!isEvent) ...[
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -661,7 +976,6 @@ void showTaskBottomSheet(
                           ),
                         ],
                         const SizedBox(width: 6),
-                        // 预约控件全部切为蓝色
                         InkWell(
                           onTap: () => _showCustomMinutesDialog(
                             context,
@@ -686,7 +1000,6 @@ void showTaskBottomSheet(
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // 允许暂停控件（同一栏最右侧，浅蓝体系）
                         InkWell(
                           onTap: () {
                             setModalState(() {
@@ -741,13 +1054,13 @@ void showTaskBottomSheet(
                   const SizedBox(height: 10),
                 ],
 
-                // 标签栏
+                // 标签栏：现有标签排在左侧，新建标签按钮排在最右侧
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
                       const Icon(Icons.tag, color: Colors.lightBlue),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       ...taskData.myTags.map((tag) => Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: FilterChip(
@@ -767,6 +1080,7 @@ void showTaskBottomSheet(
                           },
                         ),
                       )),
+                      buildCompactAddButton(label: '标签', onTap: showNewTagDialog),
                     ],
                   ),
                 ),

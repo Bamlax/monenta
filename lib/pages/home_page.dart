@@ -75,7 +75,7 @@ class _HomePageState extends State<HomePage> {
               controller: ctrl,
               autofocus: true,
               decoration: const InputDecoration(
-                hintText: '输入未完成备注原因...',
+                hintText: '输入未完成原因...',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -185,7 +185,6 @@ class _HomePageState extends State<HomePage> {
                     )),
                   ],
                 ),
-                // 移除“备注：”字样
                 if (task.failRemark != null && task.failRemark!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -486,8 +485,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildTodoBody() {
+Widget _buildTodoBody() {
     final weekStrings = ['一', '二', '三', '四', '五', '六', '日'];
+    final now = DateTime.now();
 
     return Column(
       children: [
@@ -509,6 +509,11 @@ class _HomePageState extends State<HomePage> {
                     final isSelected = date.year == _selectedDate.year &&
                         date.month == _selectedDate.month &&
                         date.day == _selectedDate.day;
+                    
+                    final isToday = date.year == now.year &&
+                        date.month == now.month &&
+                        date.day == now.day;
+
                     final dayTasks = taskData.getTasksByDate(date);
                     final taskCount = dayTasks.length;
                     final hasUnfinishedTodo = dayTasks.any((t) => !t.isEvent && !t.isDone);
@@ -517,54 +522,73 @@ class _HomePageState extends State<HomePage> {
                       onTap: () => setState(() => _selectedDate = date),
                       child: SizedBox(
                         width: 45,
-                        height: 62,
+                        height: 64,
                         child: Container(
                           decoration: BoxDecoration(
                             color: isSelected ? Colors.lightBlue : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: isSelected
-                                ? [BoxShadow(color: Colors.lightBlue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))]
+                                ? [BoxShadow(color: Colors.lightBlue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
                                 : null,
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              Text(
-                                weekStrings[date.weekday - 1],
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isSelected ? Colors.white : Colors.grey,
-                                  height: 1.0,
+                              // 仅顶部小点标注今日
+                              if (isToday)
+                                Positioned(
+                                  top: 5,
+                                  child: Container(
+                                    width: 4,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isSelected ? Colors.white : Colors.lightBlue,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${date.day}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected ? Colors.white : Colors.black87,
-                                  height: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              SizedBox(
-                                height: 13,
-                                child: taskCount > 0
-                                    ? Center(
-                                        child: Text(
-                                          '$taskCount',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: isSelected
-                                                ? (hasUnfinishedTodo ? Colors.red.shade100 : Colors.white)
-                                                : (hasUnfinishedTodo ? Colors.red : Colors.grey),
-                                            fontWeight: FontWeight.bold,
-                                            height: 1,
-                                          ),
-                                        ),
-                                      )
-                                    : null,
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // 保持原样星期文本，不修改为“今”
+                                  Text(
+                                    weekStrings[date.weekday - 1],
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isSelected ? Colors.white : Colors.grey,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${date.day}',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected ? Colors.white : Colors.black87,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  SizedBox(
+                                    height: 13,
+                                    child: taskCount > 0
+                                        ? Center(
+                                            child: Text(
+                                              '$taskCount',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                color: isSelected
+                                                    ? (hasUnfinishedTodo ? Colors.red.shade100 : Colors.white)
+                                                    : (hasUnfinishedTodo ? Colors.red : Colors.grey),
+                                                fontWeight: FontWeight.bold,
+                                                height: 1,
+                                              ),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -1145,7 +1169,6 @@ class _HomePageState extends State<HomePage> {
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 移除“备注：”字样
                     if (task.isFailed && task.failRemark != null && task.failRemark!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2, bottom: 2),
@@ -1215,7 +1238,7 @@ class _HomePageState extends State<HomePage> {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: task.isDone ? Colors.lightBlue : Colors.black54,
+                                color: task.isDone ? Colors.lightBlue : Colors.black87,
                               ),
                             ),
                           );
@@ -1227,7 +1250,6 @@ class _HomePageState extends State<HomePage> {
                       icon: const Icon(Icons.alarm, color: Colors.lightBlue),
                       onPressed: () {
                         taskData.setFocusTask(task);
-                        // 启动预约或正式专注流转
                         FocusTimerService.instance.startTaskTimer(task);
                         appTabIndex.value = 2;
                       },

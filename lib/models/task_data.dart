@@ -1089,6 +1089,25 @@ class TaskData extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  void reorderLists(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = myLists.removeAt(oldIndex);
+    myLists.insert(newIndex, item);
+    notifyListeners();
+  }
+
+  // 🔴 标签自由排序持久化
+  void reorderTags(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = myTags.removeAt(oldIndex);
+    myTags.insert(newIndex, item);
+    notifyListeners();
+  }
 }
 
 final taskData = TaskData();

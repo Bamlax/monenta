@@ -13,6 +13,16 @@ class VersionRecord {
 // 🔴 所有的版本更新记录存在这里
 const List<VersionRecord> versionHistory = [
     VersionRecord(
+    version: 'v2.1.0',
+    date: '2026-10-11',
+    updates: [
+      '新增：清单更多颜色并且支持自定义',
+      '新增：对清单和标签的管理功能',
+      '新增：今日日期的提示样式',
+      '修复：新建清单和标签功能消失的问题',
+    ],
+  ),
+    VersionRecord(
     version: 'v2.0.0',
     date: '2026-10-10',
     updates: [

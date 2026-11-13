@@ -78,7 +78,6 @@ class FocusTimerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 同步原生流体云/实时活动：胶囊明确显示“预约中”、“计时中”、“暂停中”
   void _syncLiveUpdateToSystem() {
     if (_status == FocusTimerStatus.idle || _taskId == null) {
       LiveUpdateChannel.dismiss();
@@ -87,31 +86,45 @@ class FocusTimerService extends ChangeNotifier {
 
     final nowEpoch = DateTime.now().millisecondsSinceEpoch;
 
-    // 1. 暂停状态：胶囊显示“暂停中”，卡片保持倒计可用时间
+    // 1. 暂停状态：胶囊实时显示剩余暂停时间
     if (_status == FocusTimerStatus.paused) {
-      final pauseDeadlineEpoch = nowEpoch + (_pauseRemainingSeconds * 1000);
-      LiveUpdateChannel.show(
-        title: _taskTitle,
-        text: '暂停中 · 剩余可用暂停: ${formatSeconds(_pauseRemainingSeconds)}',
-        shortText: '暂停中',
-        whenTime: pauseDeadlineEpoch,
-        useChronometer: true,
-        isCountdown: true,
-      );
+      if (_allowPause && _pauseRemainingSeconds > 0) {
+        final pauseDeadlineEpoch = nowEpoch + (_pauseRemainingSeconds * 1000);
+        LiveUpdateChannel.show(
+          title: _taskTitle,
+          text: '暂停中 · 剩余可用暂停时间',
+          shortText: formatSeconds(_pauseRemainingSeconds),
+          whenTime: pauseDeadlineEpoch,
+          useChronometer: true,
+          isCountdown: true,
+          tickInCapsule: true,
+        );
+      } else {
+        LiveUpdateChannel.show(
+          title: _taskTitle,
+          text: '暂停时间已耗尽',
+          shortText: '00:00',
+          whenTime: 0,
+          useChronometer: false,
+          isCountdown: false,
+          tickInCapsule: false,
+        );
+      }
       return;
     }
 
-    // 2. 预约阶段：胶囊显示“预约中”，展开卡片保持预约倒计时走表
+    // 2. 预约阶段：胶囊实时显示预约剩余时间
     if (_phase == FocusPhase.prep) {
       final deadlineEpoch = nowEpoch + (_prepSeconds * 1000);
       LiveUpdateChannel.show(
         title: _taskTitle,
-        text: '预约准备中 · 倒计时结束后开启专注',
-        shortText: '预约中',
+        text: '预约准备中',
+        shortText: formatSeconds(_prepSeconds),
         whenTime: deadlineEpoch,
         useChronometer: true,
         isCountdown: true,
         isReservation: true,
+        tickInCapsule: true,
         durationSeconds: _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0,
         isTaskCountdown: _mode == FocusTimerMode.countdown,
       );
@@ -128,11 +141,12 @@ class FocusTimerService extends ChangeNotifier {
         whenTime: plannedEndEpoch,
         useChronometer: true,
         isCountdown: false,
+        tickInCapsule: false,
       );
       return;
     }
 
-    // 4. 正式专注阶段（倒计时与正计时）：胶囊均显示“计时中”
+    // 4. 正式专注阶段（倒计时与正计时）：胶囊显示“计时中”
     if (_mode == FocusTimerMode.countdown) {
       final deadlineEpoch = nowEpoch + (_formalSeconds * 1000);
       LiveUpdateChannel.show(
@@ -142,6 +156,7 @@ class FocusTimerService extends ChangeNotifier {
         whenTime: deadlineEpoch,
         useChronometer: true,
         isCountdown: true,
+        tickInCapsule: false,
       );
     } else {
       final startEpoch = nowEpoch - (_formalSeconds * 1000);
@@ -152,6 +167,7 @@ class FocusTimerService extends ChangeNotifier {
         whenTime: startEpoch,
         useChronometer: true,
         isCountdown: false,
+        tickInCapsule: false,
       );
     }
   }
@@ -304,10 +320,21 @@ class FocusTimerService extends ChangeNotifier {
     if (_phase == FocusPhase.prep) {
       _prepSeconds -= elapsed;
       if (_prepSeconds <= 0) {
-        // 预约归零，无缝切入正式专注，胶囊从“预约中”切换为“计时中”
+        final overflow = -_prepSeconds;
         _phase = FocusPhase.formal;
         _prepSeconds = 0;
-        _formalSeconds = _mode == FocusTimerMode.countdown ? _targetMinutes * 60 : 0;
+        if (_mode == FocusTimerMode.countdown) {
+          _formalSeconds = (_targetMinutes * 60) - overflow;
+          _totalFocusedSeconds += overflow;
+          if (_formalSeconds <= 0) {
+            _overtimeSeconds = -_formalSeconds;
+            _formalSeconds = 0;
+            _phase = FocusPhase.overtime;
+          }
+        } else {
+          _formalSeconds = overflow;
+          _totalFocusedSeconds += overflow;
+        }
         _syncLiveUpdateToSystem();
       }
     } else if (_phase == FocusPhase.formal) {
@@ -315,9 +342,9 @@ class FocusTimerService extends ChangeNotifier {
       if (_mode == FocusTimerMode.countdown) {
         _formalSeconds -= elapsed;
         if (_formalSeconds <= 0) {
-          _phase = FocusPhase.overtime;
+          _overtimeSeconds = -_formalSeconds;
           _formalSeconds = 0;
-          _overtimeSeconds = 0;
+          _phase = FocusPhase.overtime;
           _syncLiveUpdateToSystem();
         }
       } else {

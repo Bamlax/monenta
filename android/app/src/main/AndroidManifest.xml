@@ -1,11 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 关键提级与精准定时权限 -->
+    <!-- 实时活动/流体云提级权限与后台保活权限 -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:label="Monenta"
@@ -31,7 +33,17 @@
             </intent-filter>
         </activity>
 
-        <!-- 注册预约结束与超时自动切表的后台广播接收器 -->
+        <!-- 原生实时活动前台保活服务 -->
+        <service
+            android:name=".LiveUpdateService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="focus_timer_live_update" />
+        </service>
+
+        <!-- 预约与超时后台精准切换广播接收器 -->
         <receiver
             android:name=".LiveUpdateAlarmReceiver"
             android:exported="false" />

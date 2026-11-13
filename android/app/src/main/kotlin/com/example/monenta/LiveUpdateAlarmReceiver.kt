@@ -1,4 +1,4 @@
-package com.example.monenta // 请确认包名与项目一致
+package com.example.monenta
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -8,6 +8,7 @@ class LiveUpdateAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             LiveUpdateManager.ACTION_RESERVATION_EXPIRED -> {
+                LiveUpdateManager.stopNativeTicker()
                 val taskTitle = intent.getStringExtra("taskTitle") ?: "待办任务"
                 val deadlineEpoch = intent.getLongExtra("deadlineEpoch", System.currentTimeMillis())
                 val durationSeconds = intent.getIntExtra("durationSeconds", 0)
@@ -19,11 +20,10 @@ class LiveUpdateAlarmReceiver : BroadcastReceiver() {
                     deadlineEpoch
                 }
 
-                // 预约到期后转入正式计时：胶囊显示“计时中”
                 LiveUpdateManager.postNotification(
                     context = context,
                     title = taskTitle,
-                    text = if (isTaskCountdown) "正式专注倒计时中" else "正计时进行中",
+                    text = if (isTaskCountdown) "正式专注倒计时中" else "正计时专注中",
                     shortText = "计时中",
                     whenTime = whenEpoch,
                     useChronometer = true,
@@ -40,10 +40,10 @@ class LiveUpdateAlarmReceiver : BroadcastReceiver() {
                 }
             }
             LiveUpdateManager.ACTION_TASK_OVERTIME -> {
+                LiveUpdateManager.stopNativeTicker()
                 val taskTitle = intent.getStringExtra("taskTitle") ?: "待办任务"
                 val plannedEndEpoch = intent.getLongExtra("plannedEndEpoch", System.currentTimeMillis())
 
-                // 超时后胶囊依然显示“计时中”
                 LiveUpdateManager.postNotification(
                     context = context,
                     title = "超时: $taskTitle",

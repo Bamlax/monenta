@@ -1,6 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 实时活动/流体云提级权限与后台保活权限 -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -33,7 +32,7 @@
             </intent-filter>
         </activity>
 
-        <!-- 原生实时活动前台保活服务 -->
+        <!-- 实时活动前台服务 -->
         <service
             android:name=".LiveUpdateService"
             android:exported="false"
@@ -43,10 +42,30 @@
                 android:value="focus_timer_live_update" />
         </service>
 
-        <!-- 预约与超时后台精准切换广播接收器 -->
+        <!-- 预约与超时后台广播 -->
         <receiver
             android:name=".LiveUpdateAlarmReceiver"
             android:exported="false" />
+
+        <!-- 安卓当日视图桌面小组件 -->
+        <receiver
+            android:name=".MonentaTodayWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/monenta_today_widget_info" />
+        </receiver>
+
+        <service
+            android:name=".MonentaTodayWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
         <meta-data
             android:name="flutterEmbedding"

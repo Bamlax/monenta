@@ -13,6 +13,19 @@ class VersionRecord {
 // 🔴 所有的版本更新记录存在这里
 const List<VersionRecord> versionHistory = [
     VersionRecord(
+    version: 'v2.2.0',
+    date: '2026-11-25',
+    updates: [
+      '新增：安卓小组件',
+      '新增：撤销功能',
+      '新增：结束当前链长度的功能',
+      '新增：新建待办增加待选项',
+      '新增：逾期自动纳入断链的功能并且在链上记录功能',
+      '优化：支持长按修改中断原因',
+      '修复：设置中的清单无法自定义颜色的bug',
+    ],
+  ),
+    VersionRecord(
     version: 'v2.1.0',
     date: '2026-10-11',
     updates: [

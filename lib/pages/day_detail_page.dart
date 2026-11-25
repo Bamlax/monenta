@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/task_data.dart';
@@ -15,6 +16,51 @@ class DayDetailPage extends StatefulWidget {
 
 class _DayDetailPageState extends State<DayDetailPage> {
   static const _weekStrings = ['一', '二', '三', '四', '五', '六', '日'];
+  Timer? _undoTimer;
+
+  @override
+  void dispose() {
+    _undoTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showDeleteUndoSnackBar(BuildContext ctx, List<MapEntry<int, Task>> removedTasks) {
+    if (removedTasks.isEmpty) return;
+    _undoTimer?.cancel();
+
+    final messenger = ScaffoldMessenger.of(ctx);
+    messenger.clearSnackBars();
+
+    final title = removedTasks.first.value.title;
+    final promptText = removedTasks.length > 1
+        ? '已删除「$title」等 ${removedTasks.length} 项，是否撤销删除？'
+        : '已删除「$title」，是否撤销删除？';
+
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        content: Text(promptText, style: const TextStyle(color: Colors.white, fontSize: 13)),
+        backgroundColor: const Color(0xFF1E293B),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        action: SnackBarAction(
+          label: '撤销',
+          textColor: Colors.lightBlue.shade200,
+          onPressed: () {
+            _undoTimer?.cancel();
+            taskData.restoreTasks(removedTasks);
+          },
+        ),
+      ),
+    );
+
+    _undoTimer = Timer(const Duration(seconds: 3), () {
+      try {
+        controller.close();
+      } catch (_) {}
+    });
+  }
 
   String _formatFocusDuration(int totalSeconds) {
     if (totalSeconds < 60) return '${totalSeconds}秒';
@@ -44,7 +90,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
               controller: ctrl,
               autofocus: true,
               decoration: const InputDecoration(
-                hintText: '输入未完成备注原因...',
+                hintText: '输入未完成原因...',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -157,14 +203,17 @@ class _DayDetailPageState extends State<DayDetailPage> {
             label: '置底',
           ),
           SlidableAction(
-            onPressed: (context) async {
+            onPressed: (ctx) async {
               var doAll = false;
               if (task.repeatGroupId != null) {
-                final result = await _askRepeatAction(context, '删除');
+                final result = await _askRepeatAction(ctx, '删除');
                 if (result == null) return;
                 doAll = result;
               }
-              taskData.deleteTask(task.id, deleteAllFuture: doAll);
+              final removed = taskData.deleteTaskWithSnapshot(task.id, deleteAllFuture: doAll);
+              if (mounted) {
+                _showDeleteUndoSnackBar(context, removed);
+              }
             },
             backgroundColor: Colors.red.shade400,
             foregroundColor: Colors.white,
@@ -263,7 +312,6 @@ class _DayDetailPageState extends State<DayDetailPage> {
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 移除“备注：”字样
                     if (task.isFailed && task.failRemark != null && task.failRemark!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2, bottom: 2),
@@ -315,7 +363,7 @@ class _DayDetailPageState extends State<DayDetailPage> {
                             ),
                             child: Text(
                               chainText,
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: task.isDone ? Colors.lightBlue : Colors.black54),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: task.isDone ? Colors.lightBlue : Colors.black87),
                             ),
                           );
                         },

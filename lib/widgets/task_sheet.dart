@@ -129,7 +129,6 @@ Future<String?> _createSystemCalendarEvent({
   return saveResult.data;
 }
 
-// ---------------- 圆形色相调色盘绘制组件 ----------------
 class ColorWheelPainter extends CustomPainter {
   final double brightness;
   final double hue;
@@ -146,7 +145,6 @@ class ColorWheelPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
 
-    // 1. 色相环渐变
     const sweepGradient = SweepGradient(
       colors: [
         Color(0xFFFF0000),
@@ -164,7 +162,6 @@ class ColorWheelPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius, sweepPaint);
 
-    // 2. 饱和度径向渐变（中心白 -> 边缘透明）
     final radialGradient = RadialGradient(
       colors: [
         Colors.white.withOpacity(brightness.clamp(0.0, 1.0)),
@@ -176,7 +173,6 @@ class ColorWheelPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius, radialPaint);
 
-    // 3. 明度黑色覆盖遮罩
     if (brightness < 1.0) {
       final blackPaint = Paint()
         ..color = Colors.black.withOpacity((1.0 - brightness).clamp(0.0, 1.0))
@@ -184,7 +180,6 @@ class ColorWheelPainter extends CustomPainter {
       canvas.drawCircle(center, radius, blackPaint);
     }
 
-    // 4. 瞄准圆环指示器
     final rad = hue * pi / 180;
     final thumbDist = saturation * radius;
     final thumbX = center.dx + thumbDist * cos(rad);
@@ -211,7 +206,6 @@ class ColorWheelPainter extends CustomPainter {
       oldDelegate.saturation != saturation;
 }
 
-// ---------------- 圆形调色盘弹窗 ----------------
 void showCustomColorPicker(BuildContext context, Color initialColor, ValueChanged<Color> onColorPicked) {
   final hsv = HSVColor.fromColor(initialColor);
   double hue = hsv.hue;
@@ -227,13 +221,13 @@ void showCustomColorPicker(BuildContext context, Color initialColor, ValueChange
         const double radius = wheelSize / 2;
 
         void handleTouch(Offset localPosition) {
-          final center = const Offset(radius, radius);
+          const center = Offset(radius, radius);
           final dx = localPosition.dx - center.dx;
           final dy = localPosition.dy - center.dy;
           final dist = sqrt(dx * dx + dy * dy);
 
           final sat = (dist / radius).clamp(0.0, 1.0);
-          double rad = atan2(dy, dx);
+          final rad = atan2(dy, dx);
           double deg = rad * 180 / pi;
           if (deg < 0) deg += 360;
 
@@ -249,7 +243,6 @@ void showCustomColorPicker(BuildContext context, Color initialColor, ValueChange
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 实时预览条
               Container(
                 height: 34,
                 width: double.infinity,
@@ -260,8 +253,6 @@ void showCustomColorPicker(BuildContext context, Color initialColor, ValueChange
                 ),
               ),
               const SizedBox(height: 18),
-
-              // 圆形调色盘
               GestureDetector(
                 onPanDown: (details) => handleTouch(details.localPosition),
                 onPanUpdate: (details) => handleTouch(details.localPosition),
@@ -279,8 +270,6 @@ void showCustomColorPicker(BuildContext context, Color initialColor, ValueChange
                 ),
               ),
               const SizedBox(height: 14),
-
-              // 明度调节滑条
               Row(
                 children: [
                   const Text('明度', style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
@@ -316,7 +305,6 @@ void showCustomColorPicker(BuildContext context, Color initialColor, ValueChange
   );
 }
 
-// 紧凑添加按钮（间距缩小至 2px）
 Widget buildCompactAddButton({required String label, required VoidCallback onTap}) {
   return InkWell(
     borderRadius: BorderRadius.circular(16),
@@ -353,6 +341,7 @@ void showTaskBottomSheet(
 }) {
   final TextEditingController titleController = TextEditingController(text: existingTask?.title ?? '');
   final TextEditingController descController = TextEditingController(text: existingTask?.description ?? '');
+  final FocusNode titleFocusNode = FocusNode();
 
   DateTime? taskDate = existingTask != null ? existingTask.date : defaultDate;
   TimeOfDay? selectedTime = existingTask?.time;
@@ -430,7 +419,7 @@ void showTaskBottomSheet(
     );
   }
 
-  void _showNewChainDialog(BuildContext ctx, Function(TaskChain) onCreated) {
+  void showNewChainDialog(BuildContext ctx, Function(TaskChain) onCreated) {
     final ctrl = TextEditingController();
     showDialog(
       context: ctx,
@@ -458,7 +447,7 @@ void showTaskBottomSheet(
     );
   }
 
-  void _showCustomMinutesDialog(BuildContext ctx, String title, int initialVal, Function(int) onVal) {
+  void showCustomMinutesDialog(BuildContext ctx, String title, int initialVal, Function(int) onVal) {
     final ctrl = TextEditingController(text: '$initialVal');
     showDialog(
       context: ctx,
@@ -499,73 +488,84 @@ void showTaskBottomSheet(
           void showNewListDialog() {
             final ctrl = TextEditingController();
             Color selectedColor = Colors.blue;
-            final colors = [
+            const colors = [
               Colors.blue, Colors.lightBlue, Colors.cyan, Colors.teal, Colors.green,
               Colors.lightGreen, Colors.lime, Colors.amber, Colors.orange, Colors.deepOrange,
               Colors.red, Colors.pink, Colors.purple, Colors.deepPurple, Colors.indigo,
-              Colors.blueGrey, Colors.brown, const Color(0xFF2E7D32), const Color(0xFF1565C0), const Color(0xFF6A1B9A)
+              Colors.blueGrey, Colors.brown, Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFF6A1B9A),
             ];
 
             showDialog(
               context: context,
               builder: (ctx) => StatefulBuilder(
-                builder: (ctx, setDialogState) => AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                  title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          ...colors.map((c) => GestureDetector(
-                            onTap: () => setDialogState(() => selectedColor = c),
-                            child: CircleAvatar(
-                              backgroundColor: c,
-                              radius: 13,
-                              child: selectedColor == c ? const Icon(Icons.check, size: 15, color: Colors.white) : null,
-                            ),
-                          )),
-                          // 圆盘自定义调色器入口
-                          GestureDetector(
-                            onTap: () {
-                              showCustomColorPicker(context, selectedColor, (newCol) {
-                                setDialogState(() => selectedColor = newCol);
-                              });
-                            },
-                            child: Container(
-                              width: 26,
-                              height: 26,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.lightBlue.shade300, width: 1.2),
-                                color: Colors.lightBlue.shade50,
+                builder: (ctx, setDialogState) {
+                  final isCustomSelected = !colors.any((c) => c.value == selectedColor.value);
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            ...colors.map((c) => GestureDetector(
+                              onTap: () => setDialogState(() => selectedColor = c),
+                              child: CircleAvatar(
+                                backgroundColor: c,
+                                radius: 13,
+                                child: selectedColor.value == c.value
+                                    ? const Icon(Icons.check, size: 15, color: Colors.white)
+                                    : null,
                               ),
-                              child: const Icon(Icons.palette_outlined, size: 15, color: Colors.lightBlue),
+                            )),
+                            GestureDetector(
+                              onTap: () {
+                                showCustomColorPicker(ctx, selectedColor, (newCol) {
+                                  setDialogState(() => selectedColor = newCol);
+                                });
+                              },
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isCustomSelected ? Colors.black26 : Colors.lightBlue.shade300,
+                                    width: 1.2,
+                                  ),
+                                  color: isCustomSelected ? selectedColor : Colors.lightBlue.shade50,
+                                ),
+                                child: Icon(
+                                  Icons.palette_outlined,
+                                  size: 15,
+                                  color: isCustomSelected ? Colors.white : Colors.lightBlue,
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
+                      TextButton(
+                        onPressed: () {
+                          if (ctrl.text.trim().isNotEmpty) {
+                            taskData.addList(ctrl.text.trim(), selectedColor);
+                            setModalState(() => selectedList = ctrl.text.trim());
+                            Navigator.pop(ctx);
+                          }
+                        },
+                        child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
                       ),
                     ],
-                  ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                    TextButton(
-                      onPressed: () {
-                        if (ctrl.text.trim().isNotEmpty) {
-                          taskData.addList(ctrl.text.trim(), selectedColor);
-                          setModalState(() => selectedList = ctrl.text.trim());
-                          Navigator.pop(ctx);
-                        }
-                      },
-                      child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             );
           }
@@ -631,7 +631,7 @@ void showTaskBottomSheet(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         onSelected: (val) {
                           if (val == '__new__') {
-                            _showNewChainDialog(context, (c) {
+                            showNewChainDialog(context, (c) {
                               setModalState(() => selectedChainId = c.id);
                             });
                           } else if (val == '__none__') {
@@ -741,7 +741,7 @@ void showTaskBottomSheet(
                 const Divider(height: 1),
                 const SizedBox(height: 8),
 
-                // 清单栏：现有清单排在左侧，新建清单按钮排在最右侧
+                // 清单栏
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -766,14 +766,88 @@ void showTaskBottomSheet(
                   ),
                 ),
                 const SizedBox(height: 10),
+
+                // 准备做什么输入窗口（新建时自动聚焦，实时联想历史项目关键词）
                 TextField(
                   controller: titleController,
+                  focusNode: titleFocusNode,
+                  autofocus: existingTask == null,
                   decoration: InputDecoration(
                     hintText: isEvent ? '会发生什么事？' : '准备做什么？',
                     border: InputBorder.none,
                     hintStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
+                AnimatedBuilder(
+                  animation: Listenable.merge([titleController, titleFocusNode]),
+                  builder: (context, _) {
+                    if (isEvent || !titleFocusNode.hasFocus) {
+                      return const SizedBox.shrink();
+                    }
+                    final suggestions = taskData.getHistoricalSuggestions(titleController.text);
+                    if (suggestions.isEmpty) return const SizedBox.shrink();
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: suggestions.map((keyword) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () {
+                                  final current = titleController.text;
+                                  final splitReg = RegExp(r'[\s、，,：:\-/（）()]+');
+                                  final lastMatch = splitReg.allMatches(current).toList();
+
+                                  String nextText = keyword;
+                                  if (lastMatch.isNotEmpty) {
+                                    final splitPos = lastMatch.last.end;
+                                    final tail = current.substring(splitPos).trim().toLowerCase();
+                                    if (tail.isNotEmpty && keyword.toLowerCase().startsWith(tail)) {
+                                      nextText = current.substring(0, splitPos) + keyword;
+                                    }
+                                  }
+
+                                  titleController.value = TextEditingValue(
+                                    text: nextText,
+                                    selection: TextSelection.collapsed(offset: nextText.length),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0F9FF),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: Colors.lightBlue.shade100, width: 0.8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.history, size: 12, color: Colors.lightBlue.shade600),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        keyword,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.lightBlue.shade900,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
                 TextField(
                   controller: descController,
                   decoration: const InputDecoration(hintText: '添加描述...', border: InputBorder.none),
@@ -956,7 +1030,7 @@ void showTaskBottomSheet(
                         if (timerMode == 'countdown') ...[
                           const SizedBox(width: 6),
                           InkWell(
-                            onTap: () => _showCustomMinutesDialog(
+                            onTap: () => showCustomMinutesDialog(
                               context,
                               '设定倒计时时长',
                               countdownMinutes,
@@ -977,7 +1051,7 @@ void showTaskBottomSheet(
                         ],
                         const SizedBox(width: 6),
                         InkWell(
-                          onTap: () => _showCustomMinutesDialog(
+                          onTap: () => showCustomMinutesDialog(
                             context,
                             '设定预约时长',
                             prepMinutes,
@@ -1007,7 +1081,7 @@ void showTaskBottomSheet(
                             });
                           },
                           onLongPress: () {
-                            _showCustomMinutesDialog(
+                            showCustomMinutesDialog(
                               context,
                               '设定暂停限时',
                               pauseLimitMinutes,
@@ -1054,7 +1128,7 @@ void showTaskBottomSheet(
                   const SizedBox(height: 10),
                 ],
 
-                // 标签栏：现有标签排在左侧，新建标签按钮排在最右侧
+                // 标签栏
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -1154,6 +1228,7 @@ void showTaskBottomSheet(
                         );
                       }
 
+                      if (!context.mounted) return;
                       Navigator.pop(context);
                     },
                     child: const Text('保存', style: TextStyle(color: Colors.white)),
@@ -1166,5 +1241,7 @@ void showTaskBottomSheet(
         },
       );
     },
-  );
+  ).whenComplete(() {
+    titleFocusNode.dispose();
+  });
 }

@@ -6,6 +6,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val LIVE_UPDATES_CHANNEL = "com.monenta.app/live_updates"
+    private val WIDGET_CHANNEL = "com.monenta.app/widget"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -28,7 +29,6 @@ class MainActivity : FlutterActivity() {
                         val isTaskCountdown = call.argument<Boolean>("isTaskCountdown") ?: true
 
                         if (tickInCapsule && whenTime > System.currentTimeMillis()) {
-                            // 预约与暂停阶段：由原生后台服务每秒实时刷新胶囊剩余时间
                             LiveUpdateManager.startCapsuleCountdown(
                                 context = applicationContext,
                                 title = title,
@@ -39,7 +39,6 @@ class MainActivity : FlutterActivity() {
                                 isTaskCountdown = isTaskCountdown
                             )
                         } else {
-                            // 正式专注与超时阶段：停止秒级刷新器，胶囊显示“计时中”
                             LiveUpdateManager.stopNativeTicker()
                             LiveUpdateManager.cancelAlarms(applicationContext)
                             LiveUpdateManager.postNotification(
@@ -65,6 +64,20 @@ class MainActivity : FlutterActivity() {
                     }
                     "dismissLiveUpdate" -> {
                         LiveUpdateManager.cancelNotification(applicationContext)
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // 安卓桌面小组件数据同步通道
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WIDGET_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "updateTodayWidget" -> {
+                        val payload = call.argument<String>("payload") ?: ""
+                        MonentaWidgetStore.savePayload(applicationContext, payload)
+                        MonentaWidgetStore.notifyWidgetUpdated(applicationContext)
                         result.success(true)
                     }
                     else -> result.notImplemented()

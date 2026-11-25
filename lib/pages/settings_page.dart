@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../models/task_data.dart';
+import '../widgets/task_sheet.dart';
 import 'version_history_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -11,6 +12,13 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  static const List<Color> _presetColors = [
+    Colors.blue, Colors.lightBlue, Colors.cyan, Colors.teal, Colors.green,
+    Colors.lightGreen, Colors.lime, Colors.amber, Colors.orange, Colors.deepOrange,
+    Colors.red, Colors.pink, Colors.purple, Colors.deepPurple, Colors.indigo,
+    Colors.blueGrey, Colors.brown, Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFF6A1B9A),
+  ];
+
   // ----------------- 分栏管理 -----------------
   void _showAddBucketDialog() {
     final ctrl = TextEditingController();
@@ -215,36 +223,74 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ----------------- 🔴 清单管理（支持长按自由排序，无排序图标） -----------------
+  // ----------------- 清单管理（20色预设 + 圆盘自定义调色器） -----------------
+  Widget _buildColorSelectorWrap(
+    BuildContext dialogContext,
+    Color selectedColor,
+    ValueChanged<Color> onColorChanged,
+  ) {
+    final isCustomSelected = !_presetColors.any((c) => c.value == selectedColor.value);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ..._presetColors.map((c) => GestureDetector(
+          onTap: () => onColorChanged(c),
+          child: CircleAvatar(
+            backgroundColor: c,
+            radius: 13,
+            child: selectedColor.value == c.value
+                ? const Icon(Icons.check, size: 15, color: Colors.white)
+                : null,
+          ),
+        )),
+        GestureDetector(
+          onTap: () {
+            showCustomColorPicker(dialogContext, selectedColor, onColorChanged);
+          },
+          child: Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isCustomSelected ? Colors.black26 : Colors.lightBlue.shade300,
+                width: 1.2,
+              ),
+              color: isCustomSelected ? selectedColor : Colors.lightBlue.shade50,
+            ),
+            child: Icon(
+              Icons.palette_outlined,
+              size: 15,
+              color: isCustomSelected ? Colors.white : Colors.lightBlue,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showAddListDialog() {
     final ctrl = TextEditingController();
     Color selectedColor = Colors.blue;
-    final colors = [
-      Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red,
-      Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan,
-    ];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: const Text('新建清单', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: colors.map((c) => GestureDetector(
-                  onTap: () => setDialogState(() => selectedColor = c),
-                  child: CircleAvatar(
-                    backgroundColor: c,
-                    radius: 14,
-                    child: selectedColor == c ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
-                  ),
-                )).toList(),
+              _buildColorSelectorWrap(
+                ctx,
+                selectedColor,
+                (newCol) => setDialogState(() => selectedColor = newCol),
               ),
             ],
           ),
@@ -268,32 +314,22 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showEditListDialog(TaskList list) {
     final ctrl = TextEditingController(text: list.name);
     Color selectedColor = list.color;
-    final colors = [
-      Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red,
-      Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan,
-    ];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: const Text('编辑清单', style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: '清单名称')),
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: colors.map((c) => GestureDetector(
-                  onTap: () => setDialogState(() => selectedColor = c),
-                  child: CircleAvatar(
-                    backgroundColor: c,
-                    radius: 14,
-                    child: selectedColor == c ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
-                  ),
-                )).toList(),
+              _buildColorSelectorWrap(
+                ctx,
+                selectedColor,
+                (newCol) => setDialogState(() => selectedColor = newCol),
               ),
             ],
           ),
@@ -356,12 +392,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       ? const Center(child: Text('暂无清单', style: TextStyle(color: Colors.grey)))
                       : ReorderableListView.builder(
                           scrollController: scrollController,
-                          buildDefaultDragHandles: false, // 🔴 不出现排序提示图标
+                          buildDefaultDragHandles: false,
                           itemCount: taskData.myLists.length,
                           onReorder: (oldIndex, newIndex) => taskData.reorderLists(oldIndex, newIndex),
                           itemBuilder: (context, index) {
                             final item = taskData.myLists[index];
-                            return ReorderableDelayedDragStartListener( // 🔴 长按自由排序
+                            return ReorderableDelayedDragStartListener(
                               key: ValueKey('manage_list_${item.name}_$index'),
                               index: index,
                               child: ListTile(
@@ -394,7 +430,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ----------------- 🔴 标签管理（支持长按自由排序，无排序图标） -----------------
+  // ----------------- 标签管理 -----------------
   void _showAddTagDialog() {
     final ctrl = TextEditingController();
     showDialog(
@@ -483,12 +519,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       ? const Center(child: Text('暂无标签', style: TextStyle(color: Colors.grey)))
                       : ReorderableListView.builder(
                           scrollController: scrollController,
-                          buildDefaultDragHandles: false, // 🔴 不出现排序提示图标
+                          buildDefaultDragHandles: false,
                           itemCount: taskData.myTags.length,
                           onReorder: (oldIndex, newIndex) => taskData.reorderTags(oldIndex, newIndex),
                           itemBuilder: (context, index) {
                             final tag = taskData.myTags[index];
-                            return ReorderableDelayedDragStartListener( // 🔴 长按自由排序
+                            return ReorderableDelayedDragStartListener(
                               key: ValueKey('manage_tag_${tag}_$index'),
                               index: index,
                               child: ListTile(
@@ -598,9 +634,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: _showManageChainsModal,
               ),
 
+              SwitchListTile(
+                contentPadding: const EdgeInsets.only(left: 72, right: 16),
+                title: const Text('逾期自动纳入断链', style: TextStyle(fontSize: 14)),
+                value: taskData.autoBreakChainOnOverdue,
+                activeColor: Colors.lightBlue,
+                onChanged: (val) => taskData.toggleAutoBreakChainOnOverdue(val),
+              ),
+
               const Divider(height: 1, indent: 56),
 
-              // 🔴 新增：清单管理
+              // 清单管理
               ListTile(
                 leading: const Icon(Icons.format_list_bulleted, color: Colors.lightBlue),
                 title: const Text('清单管理', style: TextStyle(fontSize: 15)),
@@ -610,7 +654,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const Divider(height: 1, indent: 56),
 
-              // 🔴 新增：标签管理
+              // 标签管理
               ListTile(
                 leading: const Icon(Icons.tag, color: Colors.lightBlue),
                 title: const Text('标签管理', style: TextStyle(fontSize: 15)),

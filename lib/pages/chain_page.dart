@@ -2,19 +2,42 @@ import 'package:flutter/material.dart';
 import '../models/task_data.dart';
 import '../widgets/task_sheet.dart';
 
-class ChainPageItem {
-  final Task task;
-  final int displayNumber; // 显示的 # 编号
-  final bool isBreakPoint; // 是否中断
-  final String? breakReason; // 中断原因
-  final DateTime date;
+enum _ChainEntryType {
+  doneTask,
+  failedTask,
+  overdueBreak,
+  archive,
+}
 
-  ChainPageItem({
-    required this.task,
-    required this.displayNumber,
-    required this.isBreakPoint,
-    this.breakReason,
-    required this.date,
+class _ChainPageItem {
+  final _ChainEntryType type;
+  final Task? task;
+  final ChainEvent? event;
+  final int displayNumber;
+  final int archivedLength;
+  final DateTime timestamp;
+
+  _ChainPageItem({
+    required this.type,
+    this.task,
+    this.event,
+    this.displayNumber = 0,
+    this.archivedLength = 0,
+    required this.timestamp,
+  });
+}
+
+class _RawTimelineNode {
+  final _ChainEntryType type;
+  final Task? task;
+  final ChainEvent? event;
+  final DateTime timestamp;
+
+  _RawTimelineNode({
+    required this.type,
+    this.task,
+    this.event,
+    required this.timestamp,
   });
 }
 
@@ -26,10 +49,247 @@ class ChainPage extends StatefulWidget {
 }
 
 class _ChainPageState extends State<ChainPage> {
-  String selectedChainId = '__all__'; // '__all__' 代表最左侧的全部
+  String selectedChainId = '__all__';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      taskData.checkOverdueChainBreaks();
+    });
+  }
 
   String _formatDateHeader(DateTime d) {
     return '${d.year}年${d.month}月${d.day}日';
+  }
+
+  void _showEndChainDialog() {
+    final isAll = selectedChainId == '__all__';
+    final chain = isAll ? null : taskData.getChain(selectedChainId);
+    final dialogTitle = isAll ? '结束全部链' : '结束「${chain?.name ?? '当前链'}」';
+    final ctrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          dialogTitle,
+          style: const TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '为之前的链命名',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              final name = ctrl.text.trim();
+              if (name.isEmpty) return;
+              taskData.endCurrentChain(
+                name: name,
+                chainId: isAll ? null : selectedChainId,
+              );
+              Navigator.pop(ctx);
+            },
+            child: const Text('确定', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditBreakReasonDialog({
+    required String initialReason,
+    required ValueChanged<String> onSave,
+  }) {
+    final ctrl = TextEditingController(text: initialReason);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          '修改中断原因',
+          style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '输入中断原因',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              onSave(ctrl.text.trim());
+              Navigator.pop(ctx);
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameArchiveDialog(ChainEvent event) {
+    final ctrl = TextEditingController(text: event.title);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          '修改链名称',
+          style: TextStyle(color: Colors.lightBlue, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '输入链名称',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) {
+                taskData.renameChainEvent(event.id, ctrl.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_ChainPageItem> _buildTimelineItems() {
+    final isAll = selectedChainId == '__all__';
+    final List<_RawTimelineNode> rawNodes = [];
+
+    // 1. 收集已完成 / 已中断的待办
+    for (final t in taskData.allTasks) {
+      if (t.chainId == null) continue;
+      if (!isAll && t.chainId != selectedChainId) continue;
+
+      if (t.isFailed) {
+        rawNodes.add(_RawTimelineNode(
+          type: _ChainEntryType.failedTask,
+          task: t,
+          timestamp: t.failDate ?? t.date ?? DateTime(2000),
+        ));
+      } else if (t.isDone) {
+        rawNodes.add(_RawTimelineNode(
+          type: _ChainEntryType.doneTask,
+          task: t,
+          timestamp: t.doneDate ?? t.date ?? DateTime(2000),
+        ));
+      }
+    }
+
+    // 2. 收集逾期断链与归档事件
+    for (final e in taskData.chainEvents) {
+      if (e.type == 'overdue_break') {
+        if (isAll || e.chainId == selectedChainId) {
+          rawNodes.add(_RawTimelineNode(
+            type: _ChainEntryType.overdueBreak,
+            event: e,
+            timestamp: e.timestamp,
+          ));
+        }
+      } else if (e.type == 'archive') {
+        if (isAll) {
+          // 全部界面仅响应全局结束事件
+          if (e.chainId == null) {
+            rawNodes.add(_RawTimelineNode(
+              type: _ChainEntryType.archive,
+              event: e,
+              timestamp: e.timestamp,
+            ));
+          }
+        } else {
+          // 单独链界面同时响应本链结束事件与全局结束事件
+          if (e.chainId == selectedChainId || e.chainId == null) {
+            rawNodes.add(_RawTimelineNode(
+              type: _ChainEntryType.archive,
+              event: e,
+              timestamp: e.timestamp,
+            ));
+          }
+        }
+      }
+    }
+
+    rawNodes.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // 3. 顺序计算 # 编号与分段长度
+    final List<_ChainPageItem> result = [];
+    int counter = 1;
+    int segmentCount = 0;
+
+    for (final node in rawNodes) {
+      switch (node.type) {
+        case _ChainEntryType.doneTask:
+          result.add(_ChainPageItem(
+            type: _ChainEntryType.doneTask,
+            task: node.task,
+            displayNumber: counter,
+            timestamp: node.timestamp,
+          ));
+          counter++;
+          segmentCount++;
+          break;
+        case _ChainEntryType.failedTask:
+          result.add(_ChainPageItem(
+            type: _ChainEntryType.failedTask,
+            task: node.task,
+            timestamp: node.timestamp,
+          ));
+          counter = 1;
+          segmentCount = 0;
+          break;
+        case _ChainEntryType.overdueBreak:
+          result.add(_ChainPageItem(
+            type: _ChainEntryType.overdueBreak,
+            event: node.event,
+            timestamp: node.timestamp,
+          ));
+          counter = 1;
+          segmentCount = 0;
+          break;
+        case _ChainEntryType.archive:
+          result.add(_ChainPageItem(
+            type: _ChainEntryType.archive,
+            event: node.event,
+            archivedLength: segmentCount,
+            timestamp: node.timestamp,
+          ));
+          counter = 1;
+          segmentCount = 0;
+          break;
+      }
+    }
+
+    return result;
   }
 
   @override
@@ -40,99 +300,36 @@ class _ChainPageState extends State<ChainPage> {
         elevation: 0,
         backgroundColor: Colors.white,
         title: const Text('链', style: TextStyle(color: Colors.lightBlue, fontWeight: FontWeight.bold)),
+        actions: [
+          TextButton(
+            onPressed: _showEndChainDialog,
+            child: const Text(
+              '结束当前链',
+              style: TextStyle(color: Colors.lightBlue, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
       body: ListenableBuilder(
         listenable: taskData,
         builder: (context, _) {
-          // 1. 顶部选择器标签：最左侧为全部
           final allChains = taskData.myChains;
-
-          // 2. 计算展示数据源
-          final List<ChainPageItem> chainItems = [];
-
-          if (selectedChainId == '__all__') {
-            // 全部链合并统计：只要遇到任意一个链断裂，即从头开始统计 (计数重置为 1)
-            final allChainTasks = taskData.allTasks
-                .where((t) => t.chainId != null && (t.isDone || t.isFailed))
-                .toList();
-
-            // 按完成时间或所属日期升序排列，模拟链推进过程
-            allChainTasks.sort((a, b) {
-              final da = a.doneDate ?? a.date ?? DateTime(2000);
-              final db = b.doneDate ?? b.date ?? DateTime(2000);
-              return da.compareTo(db);
-            });
-
-            int globalCounter = 1;
-            for (final t in allChainTasks) {
-              final itemDate = t.doneDate ?? t.date ?? DateTime.now();
-              if (t.isFailed) {
-                // 中断
-                chainItems.add(ChainPageItem(
-                  task: t,
-                  displayNumber: 0,
-                  isBreakPoint: true,
-                  breakReason: t.failRemark ?? '未说明原因',
-                  date: itemDate,
-                ));
-                globalCounter = 1; // 遇到任何一个链断了即从头开始统计
-              } else if (t.isDone) {
-                chainItems.add(ChainPageItem(
-                  task: t,
-                  displayNumber: globalCounter,
-                  isBreakPoint: false,
-                  date: itemDate,
-                ));
-                globalCounter++;
-              }
-            }
-          } else {
-            // 单独某个链统计
-            final singleChainTasks = taskData.allTasks
-                .where((t) => t.chainId == selectedChainId && (t.isDone || t.isFailed))
-                .toList();
-
-            singleChainTasks.sort((a, b) {
-              final da = a.doneDate ?? a.date ?? DateTime(2000);
-              final db = b.doneDate ?? b.date ?? DateTime(2000);
-              return da.compareTo(db);
-            });
-
-            int chainCounter = 1;
-            for (final t in singleChainTasks) {
-              final itemDate = t.doneDate ?? t.date ?? DateTime.now();
-              if (t.isFailed) {
-                chainItems.add(ChainPageItem(
-                  task: t,
-                  displayNumber: 0,
-                  isBreakPoint: true,
-                  breakReason: t.failRemark ?? '未说明原因',
-                  date: itemDate,
-                ));
-                chainCounter = 1;
-              } else if (t.isDone) {
-                chainItems.add(ChainPageItem(
-                  task: t,
-                  displayNumber: t.chainNumber ?? chainCounter,
-                  isBreakPoint: false,
-                  date: itemDate,
-                ));
-                chainCounter++;
-              }
-            }
+          if (selectedChainId != '__all__' && !allChains.any((c) => c.id == selectedChainId)) {
+            selectedChainId = '__all__';
           }
 
-          // 3. 将待办按日期分栏分组（用日期分栏分割）
-          final Map<String, List<ChainPageItem>> groupedByDate = {};
+          final chainItems = _buildTimelineItems();
+
+          final Map<String, List<_ChainPageItem>> groupedByDate = {};
           for (final item in chainItems) {
-            final header = _formatDateHeader(item.date);
+            final header = _formatDateHeader(item.timestamp);
             groupedByDate.putIfAbsent(header, () => []).add(item);
           }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 顶部选择器标签栏
+              // 顶部链选择器
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -140,7 +337,6 @@ class _ChainPageState extends State<ChainPage> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      // 最左侧是全部
                       Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
@@ -182,7 +378,7 @@ class _ChainPageState extends State<ChainPage> {
                 child: chainItems.isEmpty
                     ? Center(
                         child: Text(
-                          selectedChainId == '__all__' ? '暂无链完成或中断记录' : '该链暂无记录',
+                          selectedChainId == '__all__' ? '暂无链记录' : '该链暂无记录',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       )
@@ -196,7 +392,6 @@ class _ChainPageState extends State<ChainPage> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // 日期分栏头
                               Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
@@ -212,15 +407,131 @@ class _ChainPageState extends State<ChainPage> {
                               ),
                               Divider(height: 1, thickness: 0.5, color: Colors.grey.shade200),
 
-                              // 该日期下的链项列表
                               ...itemsInDate.map((ci) {
-                                final task = ci.task;
-                                final listColor = taskData.getListColor(task.listName ?? '');
+                                // 1. 归档结束分隔条
+                                if (ci.type == _ChainEntryType.archive && ci.event != null) {
+                                  final ev = ci.event!;
+                                  return InkWell(
+                                    onLongPress: () => _showRenameArchiveDialog(ev),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE6F1FB),
+                                        border: Border(bottom: BorderSide(color: Colors.lightBlue.shade100, width: 1)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.flag_outlined, size: 16, color: Colors.lightBlue.shade700),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              ev.title,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.lightBlue.shade900,
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              '共 ${ci.archivedLength} 环',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.lightBlue.shade800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }
 
-                                if (ci.isBreakPoint) {
-                                  // 中断项
+                                // 2. 逾期自动断链记录（长按修改原因）
+                                if (ci.type == _ChainEntryType.overdueBreak && ci.event != null) {
+                                  final ev = ci.event!;
+                                  final reasonText = (ev.reason != null && ev.reason!.isNotEmpty)
+                                      ? ev.reason!
+                                      : '任务逾期';
+                                  return InkWell(
+                                    onLongPress: () => _showEditBreakReasonDialog(
+                                      initialReason: ev.reason ?? '',
+                                      onSave: (val) => taskData.updateChainEventReason(ev.id, val),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50.withOpacity(0.45),
+                                        border: Border(bottom: BorderSide(color: Colors.grey.shade100, width: 0.8)),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.shade100,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              '逾期',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.orange.shade900,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  ev.title,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    decoration: TextDecoration.lineThrough,
+                                                    decorationColor: Colors.orange.shade800,
+                                                    decorationThickness: 1.6,
+                                                    color: Colors.orange.shade900,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  reasonText,
+                                                  style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                // 3. 手动标记中断项（长按修改原因）
+                                if (ci.type == _ChainEntryType.failedTask && ci.task != null) {
+                                  final task = ci.task!;
+                                  final reasonText = (task.failRemark != null && task.failRemark!.isNotEmpty)
+                                      ? task.failRemark!
+                                      : '未说明原因';
                                   return InkWell(
                                     onTap: () => showTaskBottomSheet(context, existingTask: task),
+                                    onLongPress: () => _showEditBreakReasonDialog(
+                                      initialReason: task.failRemark ?? '',
+                                      onSave: (val) => taskData.updateTaskFailRemark(task.id, val),
+                                    ),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                       decoration: BoxDecoration(
@@ -263,11 +574,8 @@ class _ChainPageState extends State<ChainPage> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  ci.breakReason ?? '未完成',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.red.shade700,
-                                                  ),
+                                                  reasonText,
+                                                  style: TextStyle(fontSize: 12, color: Colors.red.shade700),
                                                 ),
                                               ],
                                             ),
@@ -278,7 +586,9 @@ class _ChainPageState extends State<ChainPage> {
                                   );
                                 }
 
-                                // 正常按从上到下 # 顺序推进的完成项
+                                // 4. 正常完成项
+                                final task = ci.task!;
+                                final listColor = taskData.getListColor(task.listName ?? '');
                                 return InkWell(
                                   onTap: () => showTaskBottomSheet(context, existingTask: task),
                                   child: Container(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/task_data.dart';
@@ -17,6 +18,7 @@ class _HomePageState extends State<HomePage> {
   DateTime _selectedDate = DateTime.now();
   final PageController _pageController = PageController(initialPage: 500);
   late DateTime _baseMonday;
+  Timer? _undoTimer;
 
   final Map<String, bool> _groupExpanded = {
     '过去完成': false,
@@ -34,6 +36,51 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     final now = DateTime.now();
     _baseMonday = now.subtract(Duration(days: now.weekday - 1));
+  }
+
+  @override
+  void dispose() {
+    _undoTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _showDeleteUndoSnackBar(BuildContext ctx, List<MapEntry<int, Task>> removedTasks) {
+    if (removedTasks.isEmpty) return;
+    _undoTimer?.cancel();
+
+    final messenger = ScaffoldMessenger.of(ctx);
+    messenger.clearSnackBars();
+
+    final title = removedTasks.first.value.title;
+    final promptText = removedTasks.length > 1
+        ? '已删除「$title」等 ${removedTasks.length} 项，是否撤销删除？'
+        : '已删除「$title」，是否撤销删除？';
+
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        content: Text(promptText, style: const TextStyle(color: Colors.white, fontSize: 13)),
+        backgroundColor: const Color(0xFF1E293B),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        action: SnackBarAction(
+          label: '撤销',
+          textColor: Colors.lightBlue.shade200,
+          onPressed: () {
+            _undoTimer?.cancel();
+            taskData.restoreTasks(removedTasks);
+          },
+        ),
+      ),
+    );
+
+    _undoTimer = Timer(const Duration(seconds: 3), () {
+      try {
+        controller.close();
+      } catch (_) {}
+    });
   }
 
   Future<void> confirmSkipOverdueDialog(BuildContext ctx, VoidCallback onConfirm) async {
@@ -128,7 +175,10 @@ class _HomePageState extends State<HomePage> {
         extentRatio: 0.2,
         children: [
           SlidableAction(
-            onPressed: (context) => taskData.deleteTask(task.id),
+            onPressed: (ctx) {
+              final removed = taskData.deleteTaskWithSnapshot(task.id);
+              _showDeleteUndoSnackBar(ctx, removed);
+            },
             backgroundColor: Colors.red.shade400,
             foregroundColor: Colors.white,
             icon: Icons.delete,
@@ -287,54 +337,54 @@ class _HomePageState extends State<HomePage> {
         initialChildSize: 0.8,
         minChildSize: 0.4,
         maxChildSize: 0.95,
-        builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(
-                    children: [
-                      Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-                      const SizedBox(height: 12),
-                      const Text('待办箱', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
-                    ],
+        builder: (context, scrollController) => ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: Column(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      children: [
+                        Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                        const SizedBox(height: 12),
+                        const Text('待办箱', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListenableBuilder(
-                  listenable: taskData,
-                  builder: (context, child) {
-                    final tasks = taskData.inboxTasks;
-                    if (tasks.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          '待办箱已清空~\n随时记录你的闪念，然后在这里分配',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey, height: 1.6),
-                        ),
-                      );
-                    }
+                const Divider(height: 1),
+                Expanded(
+                  child: ListenableBuilder(
+                    listenable: taskData,
+                    builder: (context, child) {
+                      final tasks = taskData.inboxTasks;
+                      if (tasks.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            '待办箱已清空~\n随时记录你的闪念，然后在这里分配',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey, height: 1.6),
+                          ),
+                        );
+                      }
 
-                    return ReorderableListView.builder(
-                      scrollController: scrollController,
-                      itemCount: tasks.length,
-                      onReorder: (oldIndex, newIndex) => taskData.reorderInboxTasks(oldIndex, newIndex),
-                      itemBuilder: (context, index) => _buildInboxTaskCard(tasks[index], context),
-                    );
-                  },
+                      return ReorderableListView.builder(
+                        scrollController: scrollController,
+                        itemCount: tasks.length,
+                        onReorder: (oldIndex, newIndex) => taskData.reorderInboxTasks(oldIndex, newIndex),
+                        itemBuilder: (context, index) => _buildInboxTaskCard(tasks[index], context),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -485,7 +535,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-Widget _buildTodoBody() {
+  Widget _buildTodoBody() {
     final weekStrings = ['一', '二', '三', '四', '五', '六', '日'];
     final now = DateTime.now();
 
@@ -509,7 +559,7 @@ Widget _buildTodoBody() {
                     final isSelected = date.year == _selectedDate.year &&
                         date.month == _selectedDate.month &&
                         date.day == _selectedDate.day;
-                    
+
                     final isToday = date.year == now.year &&
                         date.month == now.month &&
                         date.day == now.day;
@@ -534,7 +584,6 @@ Widget _buildTodoBody() {
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
-                              // 仅顶部小点标注今日
                               if (isToday)
                                 Positioned(
                                   top: 5,
@@ -550,7 +599,6 @@ Widget _buildTodoBody() {
                               Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // 保持原样星期文本，不修改为“今”
                                   Text(
                                     weekStrings[date.weekday - 1],
                                     style: TextStyle(
@@ -1056,14 +1104,17 @@ Widget _buildTodoBody() {
             label: '置底',
           ),
           SlidableAction(
-            onPressed: (context) async {
+            onPressed: (ctx) async {
               var doAll = false;
               if (task.repeatGroupId != null) {
-                final result = await _askRepeatAction(context, '删除');
+                final result = await _askRepeatAction(ctx, '删除');
                 if (result == null) return;
                 doAll = result;
               }
-              taskData.deleteTask(task.id, deleteAllFuture: doAll);
+              final removed = taskData.deleteTaskWithSnapshot(task.id, deleteAllFuture: doAll);
+              if (mounted) {
+                _showDeleteUndoSnackBar(context, removed);
+              }
             },
             backgroundColor: Colors.red.shade400,
             foregroundColor: Colors.white,
